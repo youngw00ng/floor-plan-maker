@@ -1731,27 +1731,28 @@
     for (var i = 0; i < floorRegions.length; i++) {
       var fr = floorRegions[i];
       if (fr.type === 'polygon' && fr.points && fr.points.length >= 3) {
-        /* 펜 폴리곤 → 셀 단위로 변환해서 다이아몬드 타일로 렌더 (지그재그 방지) */
-        var polyCells = polygonPointsToCells(fr.points);
-        for (var pci = 0; pci < polyCells.length; pci++) {
-          cells[polyCells[pci].col + ',' + polyCells[pci].row] = true;
-        }
-        /* 히트 영역: 셀 기반 바운딩 다이아몬드 */
-        if (polyCells.length > 0) {
-          var polyBoundary = getOrderedBoundaryVerticesFromCells(polyCells);
-          if (polyBoundary && polyBoundary.length >= 3) {
-            var hitStr = polyBoundary.map(function(p) { return p.x + ',' + p.y; }).join(' ');
-            var hit = document.createElementNS(SVG_NS, 'polygon');
-            hit.setAttribute('points', hitStr);
-            hit.setAttribute('fill', 'rgba(0,0,0,0)');
-            hit.setAttribute('stroke', 'transparent');
-            hit.setAttribute('stroke-width', '24');
-            hit.setAttribute('class', 'floor-pen-hit');
-            hit.setAttribute('pointer-events', 'all');
-            hit.setAttribute('data-pen-floor-id', String(fr.id));
-            floorLayer.appendChild(hit);
-          }
-        }
+        /* 펜 폴리곤: 꼭짓점 직접 연결 (원래 모양 유지) */
+        var useVertex = typeof fr.points[0].vc !== 'undefined';
+        var ptStr = fr.points.map(function(p) {
+          var s = useVertex ? vertexToScreen(p.vc, p.vr) : gridToScreen(typeof p.col !== 'undefined' ? p.col : p.c, typeof p.row !== 'undefined' ? p.row : p.r);
+          return s.x + ',' + s.y;
+        }).join(' ');
+        var fillPoly = document.createElementNS(SVG_NS, 'polygon');
+        fillPoly.setAttribute('points', ptStr);
+        fillPoly.setAttribute('class', 'floor-tile');
+        if (fr.id === selectedPenFloorId) fillPoly.classList.add('floor-tile-selected');
+        fillPoly.setAttribute('stroke', 'none');
+        fillPoly.setAttribute('pointer-events', 'none');
+        floorLayer.appendChild(fillPoly);
+        var hit = document.createElementNS(SVG_NS, 'polygon');
+        hit.setAttribute('points', ptStr);
+        hit.setAttribute('fill', 'rgba(0,0,0,0)');
+        hit.setAttribute('stroke', 'transparent');
+        hit.setAttribute('stroke-width', '24');
+        hit.setAttribute('class', 'floor-pen-hit');
+        hit.setAttribute('pointer-events', 'all');
+        hit.setAttribute('data-pen-floor-id', String(fr.id));
+        floorLayer.appendChild(hit);
       } else {
         if (fr.c0 > fr.c1 || fr.r0 > fr.r1) continue;
         for (var r = fr.r0; r <= fr.r1; r++) {
@@ -3337,14 +3338,20 @@
       return;
     }
     if (penMode) {
-      var vertex = getGridVertexAtPoint(pt.x, pt.y);
+      /* 셀 중심(정수 좌표) 스냅 — 지그재그 방지 */
+      var penCell = getCellAtPoint(pt.x, pt.y);
+      if (!penCell) { return; }
+      var penCol = penCell.col, penRow = penCell.row;
       /* 첫 포인트 화면 거리 기반 닫기 판정 (20px 이내면 닫기) */
       var _penClose = false;
       if (penPoints.length >= 3) {
-        var _fp = vertexToScreen(penPoints[0].vc, penPoints[0].vr);
+        var _fpKey = penPoints[0];
+        var _fpC = typeof _fpKey.col !== 'undefined' ? _fpKey.col : _fpKey.vc;
+        var _fpR = typeof _fpKey.row !== 'undefined' ? _fpKey.row : _fpKey.vr;
+        var _fp = gridToScreen(_fpC, _fpR);
         var _dx = pt.x - _fp.x, _dy = pt.y - _fp.y;
-        if (_dx * _dx + _dy * _dy < 20 * 20) _penClose = true;
-        if (penPoints[0].vc === vertex.vc && penPoints[0].vr === vertex.vr) _penClose = true;
+        if (_dx * _dx + _dy * _dy < 25 * 25) _penClose = true;
+        if (_fpC === penCol && _fpR === penRow) _penClose = true;
       }
       if (_penClose) {
         addFloorRegionPolygon(penPoints);
@@ -3361,10 +3368,10 @@
         renderFloors();
         return;
       }
-      /* 포인트 추가 (기존 바닥 선택 없이 바로 그리기) */
-      var isDup = penPoints.length > 0 && penPoints[penPoints.length - 1].vc === vertex.vc && penPoints[penPoints.length - 1].vr === vertex.vr;
+      /* 포인트 추가 (셀 중심 좌표) */
+      var isDup = penPoints.length > 0 && penPoints[penPoints.length - 1].col === penCol && penPoints[penPoints.length - 1].row === penRow;
       if (!isDup) {
-        penPoints.push({ vc: vertex.vc, vr: vertex.vr });
+        penPoints.push({ col: penCol, row: penRow });
       }
       renderPenPreview();
       return;
@@ -3615,8 +3622,8 @@
     }
     /* 펜 모드: 커서 따라가는 라이브 라인 (패닝 중에는 스킵) */
     if (penMode && penPoints.length > 0 && !isPanning) {
-      var vertex = getGridVertexAtPoint(pt.x, pt.y);
-      penCursorPos = vertexToScreen(vertex.vc, vertex.vr);
+      var penMoveCell = getCellAtPoint(pt.x, pt.y);
+      penCursorPos = penMoveCell ? gridToScreen(penMoveCell.col, penMoveCell.row) : { x: pt.x, y: pt.y };
       renderPenPreview();
     }
   });
@@ -4720,17 +4727,12 @@
     for (var bfi = 0; bfi < floorRegions.length; bfi++) {
       var bfr = floorRegions[bfi];
       if (bfr.type === 'polygon' && bfr.points) {
-        /* 폴리곤 → 셀 → 경계 다이아몬드 bounds */
-        var bPolyCells = polygonPointsToCells(bfr.points);
-        if (bPolyCells.length > 0) {
-          var bPolyBnd = getOrderedBoundaryVerticesFromCells(bPolyCells);
-          if (bPolyBnd) {
-            for (var bpi = 0; bpi < bPolyBnd.length; bpi++) {
-              var bfpS = { x: bPolyBnd[bpi].x, y: bPolyBnd[bpi].y };
-              if (_expRot) bfpS = rotatePointOnIsoPlane(_expRot.cx, _expRot.cy, bfpS.x, bfpS.y, _expRot.deg);
-              expandBounds(bfpS.x, bfpS.y);
-            }
-          }
+        var bUseV = typeof bfr.points[0].vc !== 'undefined';
+        for (var bpi = 0; bpi < bfr.points.length; bpi++) {
+          var bp = bfr.points[bpi];
+          var bfpS = bUseV ? vertexToScreen(bp.vc, bp.vr) : gridToScreen(typeof bp.col !== 'undefined' ? bp.col : bp.c, typeof bp.row !== 'undefined' ? bp.row : bp.r);
+          if (_expRot) bfpS = rotatePointOnIsoPlane(_expRot.cx, _expRot.cy, bfpS.x, bfpS.y, _expRot.deg);
+          expandBounds(bfpS.x, bfpS.y);
         }
       } else if (bfr.c0 !== undefined) {
         var bc0 = bfr.c0, br0 = bfr.r0, bc1 = bfr.c1, br1 = bfr.r1;
@@ -4769,18 +4771,12 @@
       var efr = floorRegions[efi];
       var efScreenPts = [];
       if (efr.type === 'polygon' && efr.points && efr.points.length >= 3) {
-        /* 폴리곤 → 셀 변환 → 경계 다이아몬드로 export (지그재그 방지) */
-        var efPolyCells = polygonPointsToCells(efr.points);
-        if (efPolyCells.length > 0) {
-          var efBoundary = getOrderedBoundaryVerticesFromCells(efPolyCells);
-          if (efBoundary && efBoundary.length >= 3) {
-            efScreenPts = efBoundary.map(function(p) {
-              var s = { x: p.x, y: p.y };
-              if (_expRot) s = rotatePointOnIsoPlane(_expRot.cx, _expRot.cy, s.x, s.y, _expRot.deg);
-              return s;
-            });
-          }
-        }
+        var efUseV = typeof efr.points[0].vc !== 'undefined';
+        efScreenPts = efr.points.map(function(p) {
+          var s = efUseV ? vertexToScreen(p.vc, p.vr) : gridToScreen(typeof p.col !== 'undefined' ? p.col : p.c, typeof p.row !== 'undefined' ? p.row : p.r);
+          if (_expRot) s = rotatePointOnIsoPlane(_expRot.cx, _expRot.cy, s.x, s.y, _expRot.deg);
+          return s;
+        });
       } else if (efr.c0 !== undefined) {
         var efc0 = efr.c0, efr0 = efr.r0, efc1 = efr.c1, efr1 = efr.r1;
         if (_expRot) {
