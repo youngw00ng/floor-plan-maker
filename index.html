@@ -1731,30 +1731,27 @@
     for (var i = 0; i < floorRegions.length; i++) {
       var fr = floorRegions[i];
       if (fr.type === 'polygon' && fr.points && fr.points.length >= 3) {
-        /* 펜 폴리곤: 단일 폴리곤으로 렌더링 (격자 타일 아님) */
-        var useVertex = typeof fr.points[0].vc !== 'undefined';
-        var ptStr = fr.points.map(function(p) {
-          var s = useVertex ? vertexToScreen(p.vc, p.vr) : gridToScreen(typeof p.col !== 'undefined' ? p.col : p.c, typeof p.row !== 'undefined' ? p.row : p.r);
-          return s.x + ',' + s.y;
-        }).join(' ');
-        /* 채운 폴리곤 */
-        var fillPoly = document.createElementNS(SVG_NS, 'polygon');
-        fillPoly.setAttribute('points', ptStr);
-        fillPoly.setAttribute('class', 'floor-tile');
-        if (fr.id === selectedPenFloorId) fillPoly.classList.add('floor-tile-selected');
-        fillPoly.setAttribute('stroke', 'none');
-        fillPoly.setAttribute('pointer-events', 'none');
-        floorLayer.appendChild(fillPoly);
-        /* 투명 히트 영역 (클릭 감지용) */
-        var hit = document.createElementNS(SVG_NS, 'polygon');
-        hit.setAttribute('points', ptStr);
-        hit.setAttribute('fill', 'rgba(0,0,0,0)');
-        hit.setAttribute('stroke', 'transparent');
-        hit.setAttribute('stroke-width', '24');
-        hit.setAttribute('class', 'floor-pen-hit');
-        hit.setAttribute('pointer-events', 'all');
-        hit.setAttribute('data-pen-floor-id', String(fr.id));
-        floorLayer.appendChild(hit);
+        /* 펜 폴리곤 → 셀 단위로 변환해서 다이아몬드 타일로 렌더 (지그재그 방지) */
+        var polyCells = polygonPointsToCells(fr.points);
+        for (var pci = 0; pci < polyCells.length; pci++) {
+          cells[polyCells[pci].col + ',' + polyCells[pci].row] = true;
+        }
+        /* 히트 영역: 셀 기반 바운딩 다이아몬드 */
+        if (polyCells.length > 0) {
+          var polyBoundary = getOrderedBoundaryVerticesFromCells(polyCells);
+          if (polyBoundary && polyBoundary.length >= 3) {
+            var hitStr = polyBoundary.map(function(p) { return p.x + ',' + p.y; }).join(' ');
+            var hit = document.createElementNS(SVG_NS, 'polygon');
+            hit.setAttribute('points', hitStr);
+            hit.setAttribute('fill', 'rgba(0,0,0,0)');
+            hit.setAttribute('stroke', 'transparent');
+            hit.setAttribute('stroke-width', '24');
+            hit.setAttribute('class', 'floor-pen-hit');
+            hit.setAttribute('pointer-events', 'all');
+            hit.setAttribute('data-pen-floor-id', String(fr.id));
+            floorLayer.appendChild(hit);
+          }
+        }
       } else {
         if (fr.c0 > fr.c1 || fr.r0 > fr.r1) continue;
         for (var r = fr.r0; r <= fr.r1; r++) {
@@ -4723,12 +4720,17 @@
     for (var bfi = 0; bfi < floorRegions.length; bfi++) {
       var bfr = floorRegions[bfi];
       if (bfr.type === 'polygon' && bfr.points) {
-        for (var bpi = 0; bpi < bfr.points.length; bpi++) {
-          var bvc = (typeof bfr.points[bpi].vc !== 'undefined') ? bfr.points[bpi].vc : (bfr.points[bpi].col || bfr.points[bpi].c);
-          var bvr = (typeof bfr.points[bpi].vr !== 'undefined') ? bfr.points[bpi].vr : (bfr.points[bpi].row || bfr.points[bpi].r);
-          var bfpS = gridToScreen(bvc, bvr);
-          if (_expRot) bfpS = rotatePointOnIsoPlane(_expRot.cx, _expRot.cy, bfpS.x, bfpS.y, _expRot.deg);
-          expandBounds(bfpS.x, bfpS.y);
+        /* 폴리곤 → 셀 → 경계 다이아몬드 bounds */
+        var bPolyCells = polygonPointsToCells(bfr.points);
+        if (bPolyCells.length > 0) {
+          var bPolyBnd = getOrderedBoundaryVerticesFromCells(bPolyCells);
+          if (bPolyBnd) {
+            for (var bpi = 0; bpi < bPolyBnd.length; bpi++) {
+              var bfpS = { x: bPolyBnd[bpi].x, y: bPolyBnd[bpi].y };
+              if (_expRot) bfpS = rotatePointOnIsoPlane(_expRot.cx, _expRot.cy, bfpS.x, bfpS.y, _expRot.deg);
+              expandBounds(bfpS.x, bfpS.y);
+            }
+          }
         }
       } else if (bfr.c0 !== undefined) {
         var bc0 = bfr.c0, br0 = bfr.r0, bc1 = bfr.c1, br1 = bfr.r1;
@@ -4767,13 +4769,18 @@
       var efr = floorRegions[efi];
       var efScreenPts = [];
       if (efr.type === 'polygon' && efr.points && efr.points.length >= 3) {
-        efScreenPts = efr.points.map(function(p) {
-          var vc = (typeof p.vc !== 'undefined') ? p.vc : (p.col || p.c);
-          var vr = (typeof p.vr !== 'undefined') ? p.vr : (p.row || p.r);
-          var s = gridToScreen(vc, vr);
-          if (_expRot) s = rotatePointOnIsoPlane(_expRot.cx, _expRot.cy, s.x, s.y, _expRot.deg);
-          return s;
-        });
+        /* 폴리곤 → 셀 변환 → 경계 다이아몬드로 export (지그재그 방지) */
+        var efPolyCells = polygonPointsToCells(efr.points);
+        if (efPolyCells.length > 0) {
+          var efBoundary = getOrderedBoundaryVerticesFromCells(efPolyCells);
+          if (efBoundary && efBoundary.length >= 3) {
+            efScreenPts = efBoundary.map(function(p) {
+              var s = { x: p.x, y: p.y };
+              if (_expRot) s = rotatePointOnIsoPlane(_expRot.cx, _expRot.cy, s.x, s.y, _expRot.deg);
+              return s;
+            });
+          }
+        }
       } else if (efr.c0 !== undefined) {
         var efc0 = efr.c0, efr0 = efr.r0, efc1 = efr.c1, efr1 = efr.r1;
         if (_expRot) {
