@@ -1,0 +1,4964 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>방 도면 만들기</title>
+  <style>
+    :root {
+      --primary: #33C6B0;
+      --primary-dark: #2AB39E;
+      --eraser: #E07C5E;
+      --bg: #F0F2F5;
+      --surface: #FFFFFF;
+      --header-bg: #1C1C2E;
+      --border: #E0E3E8;
+      --text: #1A1A2E;
+      --text-muted: #8892A0;
+      --sidebar-w: 192px;
+      --header-h: 52px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Pretendard', 'Malgun Gothic', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Header ─────────────────────────────────── */
+    .app-header {
+      height: var(--header-h);
+      background: var(--header-bg);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 16px;
+      flex-shrink: 0;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .header-logo {
+      font-size: 14px;
+      font-weight: 700;
+      color: #fff;
+      white-space: nowrap;
+      letter-spacing: -0.01em;
+    }
+    .header-logo span { color: var(--primary); }
+    .header-divider {
+      width: 1px;
+      height: 22px;
+      background: rgba(255,255,255,0.12);
+      flex-shrink: 0;
+      margin: 0 2px;
+    }
+    .header-group {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .header-group.grow { flex: 1; }
+    .header-label {
+      font-size: 11px;
+      color: rgba(255,255,255,0.4);
+      white-space: nowrap;
+    }
+    .plan-filename-input {
+      width: 120px;
+      padding: 5px 9px;
+      border: 1px solid rgba(255,255,255,0.14);
+      border-radius: 6px;
+      font-size: 13px;
+      background: rgba(255,255,255,0.07);
+      color: #fff;
+      font-family: inherit;
+    }
+    .plan-filename-input::placeholder { color: rgba(255,255,255,0.28); }
+    .plan-filename-input:focus {
+      outline: none;
+      border-color: var(--primary);
+      background: rgba(255,255,255,0.11);
+    }
+    .header-btn {
+      padding: 5px 11px;
+      border: 1px solid rgba(255,255,255,0.14);
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      background: rgba(255,255,255,0.07);
+      color: rgba(255,255,255,0.82);
+      transition: all 0.15s;
+      white-space: nowrap;
+      font-family: inherit;
+    }
+    .header-btn:hover {
+      background: rgba(255,255,255,0.13);
+      border-color: rgba(255,255,255,0.24);
+      color: #fff;
+    }
+    .header-btn.primary {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #fff;
+      font-weight: 600;
+    }
+    .header-btn.primary:hover { background: var(--primary-dark); border-color: var(--primary-dark); }
+    .header-hint {
+      font-size: 11px;
+      color: var(--primary);
+      white-space: nowrap;
+    }
+    .header-save-hint {
+      font-size: 11px;
+      color: rgba(255,255,255,0.45);
+      white-space: nowrap;
+    }
+
+    /* ── App body ───────────────────────────────── */
+    .app-body {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ── Sidebar ────────────────────────────────── */
+    .sidebar {
+      width: var(--sidebar-w);
+      flex-shrink: 0;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+    .sidebar-section {
+      padding: 13px 11px;
+      border-bottom: 1px solid var(--border);
+    }
+    .sidebar-label {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 9px;
+    }
+
+    /* Tool buttons */
+    .tool-btn {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      width: 100%;
+      padding: 7px 10px;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text);
+      background: #fff;
+      cursor: pointer;
+      margin-bottom: 5px;
+      transition: all 0.15s;
+      text-align: left;
+      font-family: inherit;
+    }
+    .tool-btn:last-of-type { margin-bottom: 0; }
+    .tool-btn:hover { background: #F5F7FA; border-color: #C6CDD6; }
+    .tool-btn.eraser-on { background: #FEF2EE; border-color: var(--eraser); color: var(--eraser); font-weight: 600; }
+    .tool-btn.pen-on { background: #EDFAF8; border-color: var(--primary); color: var(--primary); font-weight: 600; }
+    .tool-btn.primary { background: #EFF6FF; border-color: #3B82F6; color: #3B82F6; font-weight: 600; }
+    .tool-btn-icon { font-size: 13px; flex-shrink: 0; }
+
+    /* Step controls (zoom, font) */
+    .view-control {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .view-control:last-child { margin-bottom: 0; }
+    .view-label { font-size: 12px; color: var(--text); flex-shrink: 0; }
+    .step-control {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .step-btn {
+      width: 26px;
+      height: 26px;
+      border: none;
+      background: transparent;
+      border-radius: 0;
+      font-size: 15px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text);
+      transition: background 0.12s;
+      font-family: inherit;
+    }
+    .step-btn:hover { background: #DDE0E6; }
+    .step-value {
+      min-width: 38px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text);
+      text-align: center;
+      border-left: 1px solid var(--border);
+      border-right: 1px solid var(--border);
+      line-height: 26px;
+    }
+    .shade-select {
+      width: 100%;
+      margin-top: 5px;
+      padding: 5px 8px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 12px;
+      background: #fff;
+      color: var(--text);
+      cursor: pointer;
+      font-family: inherit;
+    }
+
+    /* Room palette */
+    .asset-palette-item {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: grab;
+      padding: 7px 8px;
+      border: 1.5px dashed var(--border);
+      border-radius: 7px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-muted);
+      background: var(--bg);
+      margin-bottom: 5px;
+      transition: all 0.15s;
+      user-select: none;
+    }
+    .asset-palette-item:last-of-type { margin-bottom: 0; }
+    .asset-palette-item:hover { border-color: var(--primary); background: #EDFAF8; color: var(--primary); }
+    .asset-palette-item:active { cursor: grabbing; }
+
+    /* Kiosk palette */
+    .kiosk-palette-item {
+      cursor: grab;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 10px;
+      border: 1.5px dashed var(--border);
+      border-radius: 7px;
+      background: var(--bg);
+      transition: all 0.15s;
+    }
+    .kiosk-palette-item:hover { border-color: var(--primary); background: #EDFAF8; }
+    .kiosk-palette-item:active { cursor: grabbing; }
+    .kiosk-palette-item svg { display: block; width: 40px; height: auto; }
+
+    /* Sidebar hint section */
+    .sidebar-hint {
+      font-size: 11px;
+      color: var(--text-muted);
+      line-height: 1.7;
+    }
+
+    /* ── Canvas area ────────────────────────────── */
+    .canvas-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      overflow: auto;
+      position: relative;
+    }
+    .canvas-extra-hint {
+      margin-top: 10px;
+      font-size: 12px;
+      color: #3B82F6;
+      min-height: 18px;
+      text-align: center;
+    }
+    .wrap {
+      border: 1px solid #C8D0DA;
+      border-radius: 14px;
+      overflow: hidden;
+      background: #DDE2E8;
+      cursor: crosshair;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.10), 0 1px 4px rgba(0,0,0,0.06);
+    }
+    .wrap:focus { outline: none; }
+    #svgStage { display: block; }
+
+    /* ── SVG canvas elements ─────────────────────── */
+    .grid-tile {
+      fill: none;
+      stroke: rgba(200, 200, 200, 0.35);
+      stroke-width: 0.3;
+    }
+    .grid-tile.grid-near { stroke: rgba(200, 200, 200, 0.7); stroke-width: 0.5; }
+    .grid-tile:hover { fill: rgba(235, 240, 238, 0.2); }
+    .floor-tile {
+      fill: #d2d9e1;
+      stroke: #d2d9e1;
+      stroke-width: 0.5;
+      cursor: pointer;
+      transition: fill 0.15s;
+    }
+    .floor-tile:hover { fill: #c5ced9; }
+    .floor-tile.preview {
+      fill: rgba(210, 217, 225, 0.85);
+      stroke: #33C6B0;
+      stroke-width: 1;
+    }
+    .floor-tile.preview.eraser {
+      fill: rgba(224, 124, 94, 0.4);
+      stroke: #e07c5e;
+    }
+    .floor-tile.floor-tile-selected {
+      stroke: #2563eb;
+      stroke-width: 2;
+      filter: brightness(1.05);
+    }
+    .floor-tile.floor-tile-polygon {
+      fill: #d2d9e1;
+      stroke: none;
+    }
+    .room-group { cursor: inherit; }
+    .room-group:hover .room-top { filter: brightness(1.06); }
+    .room-link-label {
+      font-size: 9px;
+      font-weight: 700;
+      fill: #ffffff;
+      paint-order: stroke fill;
+      stroke: rgba(0, 0, 0, 0.45);
+      stroke-width: 2.5px;
+      pointer-events: none;
+    }
+    .room-top {
+      fill: #3fc3b0;
+      stroke: none;
+      transition: filter 0.2s;
+    }
+    .room-side-a { fill: #2a9d8a; stroke: none; }
+    .room-side-b { fill: #1f7a6b; stroke: none; }
+    .room-side-left { fill: #2563eb; stroke: none; }
+    .room-side-back { fill: #000000; fill-opacity: 0.15; stroke: none; }
+    .room-side-right-back { fill: #000000; fill-opacity: 0.4; stroke: none; }
+    .room-top.room-type-counter, .room-type-counter.room-top { fill: #bcc6cd; stroke: none; }
+    .room-side-front { fill: #dc2626; stroke: none; }
+    .room-label-top {
+      font-size: 11px;
+      font-weight: 700;
+      fill: #1a1a1a;
+      text-anchor: middle;
+      dominant-baseline: middle;
+      pointer-events: none;
+      user-select: none;
+    }
+    .room-label-face {
+      font-size: 13px;
+      font-weight: 700;
+      fill: #ffffff;
+      text-anchor: middle;
+      dominant-baseline: central;
+      alignment-baseline: central;
+      pointer-events: none;
+      user-select: none;
+    }
+    .room-group text.room-label-top,
+    .room-group text.room-label-face { pointer-events: auto; cursor: inherit; }
+
+    /* ── Edit modal (room) ──────────────────────── */
+    .edit-input-wrap {
+      position: fixed;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      inset: 0;
+      background: rgba(0,0,0,0.42);
+      z-index: 100;
+      backdrop-filter: blur(3px);
+    }
+    .edit-input-wrap.show { display: flex; }
+    #kioskEditWrap .edit-input-box { min-width: 220px; }
+    .edit-input-box {
+      background: #fff;
+      padding: 24px;
+      border-radius: 14px;
+      border: none;
+      box-shadow: 0 10px 48px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.08);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-width: 300px;
+      text-align: left;
+    }
+    .edit-type-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; margin-bottom: 10px; }
+    .edit-type-label { flex-shrink: 0; font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
+    .edit-radio-label {
+      display: inline-flex;
+      flex-direction: row;
+      flex-shrink: 0;
+      align-items: center;
+      font-size: 13px;
+      line-height: 1.3;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+    .edit-radio-label input[type="radio"] {
+      width: 1rem;
+      height: 1rem;
+      min-width: 1rem;
+      max-width: 1rem;
+      flex: 0 0 1rem;
+      margin: 0 6px 0 0;
+      padding: 0;
+      vertical-align: middle;
+      accent-color: var(--primary);
+    }
+    .edit-input-box > label:not(.edit-radio-label) {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: -4px;
+    }
+    .edit-input-box input[type="text"] {
+      width: 100%;
+      padding: 10px 12px;
+      font-size: 14px;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: inherit;
+    }
+    .edit-input-box input[type="text"]:focus {
+      outline: none;
+      border-color: var(--primary);
+      background: #fff;
+    }
+    .edit-input-box input[type="range"] {
+      width: 100%;
+      max-width: 100%;
+      padding: 0;
+      margin: 4px 0;
+      accent-color: var(--primary);
+    }
+    .edit-input-box .edit-buttons {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+      margin-top: 4px;
+    }
+    .panel-title { font-size: 13px; font-weight: 700; color: var(--text); }
+
+    /* ── Generic buttons (modals) ───────────────── */
+    button {
+      padding: 8px 14px;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      font-size: 13px;
+      cursor: pointer;
+      background: var(--bg);
+      color: var(--text);
+      font-family: inherit;
+      transition: all 0.15s;
+    }
+    button:hover { background: #E4E7EC; border-color: #C6CDD6; }
+    button.primary { background: var(--primary); color: #fff; border-color: var(--primary); }
+    button.primary:hover { background: var(--primary-dark); border-color: var(--primary-dark); }
+    .edit-input-box button { padding: 8px 16px; }
+
+    /* ── Load plan modal ────────────────────────── */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.42);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      backdrop-filter: blur(3px);
+    }
+    .modal-overlay[aria-hidden="true"] { display: none; }
+    .modal-box {
+      background: #fff;
+      border-radius: 14px;
+      padding: 28px;
+      max-width: 420px;
+      width: 90%;
+      box-shadow: 0 12px 48px rgba(0,0,0,0.18);
+    }
+    .modal-box h3 { margin-bottom: 6px; font-size: 1.1rem; font-weight: 700; }
+    .modal-hint { color: var(--text-muted); font-size: 13px; margin-bottom: 16px; }
+    .load-plan-list {
+      list-style: none;
+      max-height: 240px;
+      overflow-y: auto;
+      margin-bottom: 16px;
+    }
+    .load-plan-list li { margin-bottom: 6px; }
+    .load-plan-list button {
+      width: 100%;
+      text-align: left;
+      padding: 10px 14px;
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .load-plan-list button:hover { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .load-plan-list .empty-hint { font-size: 13px; color: var(--text-muted); padding: 12px 0; list-style: none; }
+    .modal-actions { text-align: right; }
+
+    /* ── Export modal ─────────────────────────── */
+    .export-modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.58);
+      z-index: 9100;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(3px);
+    }
+    .export-modal-overlay.open { display: flex; }
+    .export-modal-box {
+      background: #fff;
+      border-radius: 14px;
+      padding: 24px;
+      width: min(760px, 94vw);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      box-shadow: 0 12px 48px rgba(0,0,0,0.22);
+    }
+    .export-modal-title { font-size: 15px; font-weight: 700; color: #1a1a2e; }
+    .export-preview-area {
+      width: 100%; height: 360px;
+      border: 1px solid #e0e3e8;
+      border-radius: 8px;
+      background: #f5f6f8;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .export-preview-area svg { max-width: 100%; max-height: 100%; display: block; }
+    .export-angle-row { display: flex; align-items: center; gap: 12px; }
+    .export-angle-row label { font-size: 13px; color: #555; white-space: nowrap; }
+    .export-angle-row input[type=range] { flex: 1; cursor: pointer; }
+    .export-angle-row input[type=number] {
+      width: 64px; padding: 4px 8px;
+      border: 1px solid #ddd; border-radius: 6px;
+      font-size: 13px; text-align: center; font-family: inherit;
+    }
+    .export-modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+    .export-modal-btn {
+      padding: 7px 20px; border-radius: 8px;
+      font-size: 13px; font-weight: 600;
+      cursor: pointer; font-family: inherit;
+      border: none; transition: all 0.15s;
+    }
+    .export-modal-btn.cancel { background: #f0f2f5; color: #555; }
+    .export-modal-btn.cancel:hover { background: #e0e3e8; }
+    .export-modal-btn.download { background: var(--primary); color: #fff; }
+    .export-modal-btn.download:hover { background: var(--primary-dark); }
+
+    /* ── Ghost / Kiosk on stage ─────────────────── */
+    .kiosk-ghost {
+      position: fixed;
+      pointer-events: none;
+      z-index: 1000;
+      opacity: 0.9;
+      filter: drop-shadow(0 2px 8px rgba(0,0,0,0.2));
+    }
+    .kiosk-on-stage { cursor: move; }
+  </style>
+</head>
+<body>
+
+  <!-- ── Header ─────────────────────────────────── -->
+  <header class="app-header">
+    <div class="header-logo">방 <span>도면</span></div>
+    <div class="header-divider"></div>
+    <div class="header-group">
+      <span class="header-label">매장명</span>
+      <input type="text" id="planFilename" placeholder="예: 강남점" maxlength="80" class="plan-filename-input" />
+      <button type="button" class="header-btn" id="btnSavePlan" title="현재 도면을 브라우저에 저장">저장</button>
+      <button type="button" class="header-btn" id="btnLoadPlan" title="저장된 도면 목록에서 불러오기">불러오기</button>
+      <span class="header-save-hint" id="savePlanHint"></span>
+    </div>
+    <div class="header-group grow"></div>
+    <div class="header-group">
+      <button type="button" class="header-btn" id="btnUndo">↩ 되돌리기</button>
+      <button type="button" class="header-btn" id="btnRotateCCW90" title="90° 반시계 회전">↺90°</button>
+      <button type="button" class="header-btn" id="btnRotateCW90" title="90° 시계 회전">↻90°</button>
+      <button type="button" class="header-btn" id="btnRoomMap">room_id 매핑</button>
+      <span class="header-hint" id="roomMapToolbarHint"></span>
+      <button type="button" class="header-btn primary" id="btnExport">⬇ SVG 저장</button>
+    </div>
+  </header>
+
+  <!-- ── Load plan modal ───────────────────────── -->
+  <div id="loadPlanModal" class="modal-overlay" aria-hidden="true">
+    <div class="modal-box">
+      <h3>저장된 도면 불러오기</h3>
+      <p class="modal-hint">불러올 매장을 선택하세요.</p>
+      <ul id="loadPlanList" class="load-plan-list"></ul>
+      <div class="modal-actions">
+        <button type="button" id="loadPlanClose">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Export modal ──────────────────────────── -->
+  <div id="exportModal" class="export-modal-overlay" aria-hidden="true">
+    <div class="export-modal-box">
+      <div class="export-modal-title">SVG 내보내기</div>
+      <div class="export-preview-area" id="exportPreviewArea"></div>
+      <div class="export-angle-row">
+        <label for="exportAngleSlider">회전 각도</label>
+        <input type="range" id="exportAngleSlider" min="-180" max="180" value="0" step="30">
+        <input type="number" id="exportAngleInput" min="-180" max="180" value="0" step="30">
+        <span style="font-size:13px;color:#888">°</span>
+      </div>
+      <div class="export-angle-row" style="margin-top:8px">
+        <label>빛 방향</label>
+        <button type="button" id="exportLightLeft" style="padding:4px 14px;border:1px solid #ddd;border-radius:6px;cursor:pointer;font-size:13px;background:#3fc3b0;color:#fff">← 왼쪽</button>
+        <button type="button" id="exportLightRight" style="padding:4px 14px;border:1px solid #ddd;border-radius:6px;cursor:pointer;font-size:13px;background:#fff;color:#555">오른쪽 →</button>
+      </div>
+      <div id="exportEditPanel" style="display:none;margin-top:8px;padding:10px 14px;background:#f5f7fa;border-radius:8px;font-size:13px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <strong id="exportEditTitle" style="flex:1"></strong>
+          <button type="button" id="exportEditClose" style="border:none;background:none;cursor:pointer;font-size:16px;color:#888">✕</button>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">
+          <label style="width:60px;color:#666">윗면 글자</label>
+          <input type="text" id="exportEditLabel" style="flex:1;padding:4px 8px;border:1px solid #ddd;border-radius:4px;font-size:13px">
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">
+          <label style="width:60px;color:#666">벽면 코드</label>
+          <input type="text" id="exportEditCode" style="flex:1;padding:4px 8px;border:1px solid #ddd;border-radius:4px;font-size:13px">
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">
+          <label style="width:60px;color:#666">코드 이동</label>
+          <button type="button" id="exportCodeUp" style="padding:2px 8px;font-size:14px;cursor:pointer;border:1px solid #ddd;border-radius:4px">↑</button>
+          <button type="button" id="exportCodeDown" style="padding:2px 8px;font-size:14px;cursor:pointer;border:1px solid #ddd;border-radius:4px">↓</button>
+          <button type="button" id="exportCodeLeft" style="padding:2px 8px;font-size:14px;cursor:pointer;border:1px solid #ddd;border-radius:4px">←</button>
+          <button type="button" id="exportCodeRight" style="padding:2px 8px;font-size:14px;cursor:pointer;border:1px solid #ddd;border-radius:4px">→</button>
+          <button type="button" id="exportCodePosReset" style="padding:2px 8px;font-size:11px;cursor:pointer;border:1px solid #ddd;border-radius:4px">초기화</button>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">
+          <label style="width:60px;color:#666">코드 위치</label>
+          <button type="button" id="exportCodeFaceLeft" style="padding:3px 12px;border:1px solid #ddd;border-radius:4px;cursor:pointer;font-size:12px">좌측 면</button>
+          <button type="button" id="exportCodeFaceRight" style="padding:3px 12px;border:1px solid #ddd;border-radius:4px;cursor:pointer;font-size:12px">우측 면</button>
+          <button type="button" id="exportCodeFaceAuto" style="padding:3px 12px;border:1px solid #ddd;border-radius:4px;cursor:pointer;font-size:12px;background:#3fc3b0;color:#fff">자동(넓은면)</button>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <label style="width:60px;color:#666">앞뒤 순서</label>
+          <button type="button" id="exportZBack" style="padding:3px 12px;border:1px solid #ddd;border-radius:4px;cursor:pointer;font-size:12px">▼ 뒤로</button>
+          <button type="button" id="exportZFront" style="padding:3px 12px;border:1px solid #ddd;border-radius:4px;cursor:pointer;font-size:12px">▲ 앞으로</button>
+          <button type="button" id="exportZReset" style="padding:3px 12px;border:1px solid #ddd;border-radius:4px;cursor:pointer;font-size:12px">초기화</button>
+        </div>
+      </div>
+      <div class="export-modal-actions">
+        <button type="button" class="export-modal-btn cancel" id="exportCancelBtn">취소</button>
+        <button type="button" class="export-modal-btn download" id="exportDownloadBtn">⬇ 다운로드</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── App body ──────────────────────────────── -->
+  <div class="app-body">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+
+      <!-- 그리기 도구 -->
+      <div class="sidebar-section">
+        <div class="sidebar-label">그리기 도구</div>
+        <button type="button" class="tool-btn" id="btnEraser" title="지우개: 켜면 바닥을 드래그해서 지울 수 있음">
+          <span class="tool-btn-icon">🗑</span> 지우개
+        </button>
+        <button type="button" class="tool-btn" id="btnPen" title="펜: 그리드 점을 클릭해 연결하면 바닥 영역 생성. 닫을 때 첫 점 다시 클릭">
+          <span class="tool-btn-icon">✏️</span> 펜
+        </button>
+        <button type="button" class="tool-btn" id="btnLinkRooms" title="연결방: 켠 뒤 방을 두 번 클릭하면 빨간 양방향 화살표">
+          <span class="tool-btn-icon">🔗</span> 연결방
+        </button>
+        <div id="extraHint" style="font-size:11px; color:#3B82F6; min-height:16px; margin-top:4px; padding: 0 2px;"></div>
+      </div>
+
+      <!-- 방 추가 -->
+      <div class="sidebar-section">
+        <div class="sidebar-label">방 추가</div>
+        <div class="asset-palette-item" id="assetRoom22" data-asset-room-w="2" data-asset-room-h="2" title="2×2 방을 바닥 위에 놓기">방 2×2</div>
+        <div class="asset-palette-item" id="assetRoom13" data-asset-room-w="3" data-asset-room-h="1" title="3×1 방">방 3×1</div>
+        <div class="asset-palette-item" id="assetRoom31" data-asset-room-w="1" data-asset-room-h="3" title="1×3 방">방 1×3</div>
+      </div>
+
+      <!-- 키오스크 -->
+      <div class="sidebar-section">
+        <div class="sidebar-label">키오스크</div>
+        <div class="kiosk-palette-item" id="kioskPaletteItem" title="드래그하여 위치에 놓기">
+          <!-- 팔레트 미리보기: createKioskGroup과 동일한 아이소메트릭 투시도 -->
+          <!-- anchor = 셀 중심 (0,0), fw=0.7, HW=15, HH=10, kh=22
+               fhw=10.5, fhh=7
+               bF=(0,7) bR=(-10.5,0) bBk=(0,-7) bL=(10.5,0)
+               tF=(0,-15) tR=(-10.5,-22) tBk=(0,-29) tL=(10.5,-22)
+               pinBY=-29, pinR=9.24, pinCY=-44.7
+          -->
+          <svg viewBox="-12 -57 24 67" xmlns="http://www.w3.org/2000/svg">
+            <!-- 오른쪽 면 -->
+            <polygon points="0,7 -10.5,0 -10.5,-22 0,-15" fill="#96c3bc"/>
+            <!-- 왼쪽 면 -->
+            <polygon points="0,7 10.5,0 10.5,-22 0,-15" fill="#b7d2cd"/>
+            <!-- 윗면 -->
+            <polygon points="0,-15 -10.5,-22 0,-29 10.5,-22" fill="#d5e7e3"/>
+            <!-- 빨간 화면 (오른쪽 면 안쪽) -->
+            <polygon points="-1.5,4.0 -9.0,-1.0 -9.0,-18.8 -1.5,-13.8" fill="#ff0038"/>
+            <!-- 핀 꼬리 -->
+            <polygon points="-3.5,-34.5 3.5,-34.5 0,-29" fill="#ff1c40"/>
+            <!-- 핀 원 -->
+            <circle cx="0" cy="-44.7" r="9.2" fill="#ff1c40"/>
+            <!-- 핀 구멍 -->
+            <circle cx="0" cy="-44.7" r="3.9" fill="white"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- 보기 설정 -->
+      <div class="sidebar-section">
+        <div class="sidebar-label">보기</div>
+        <div class="view-control">
+          <span class="view-label">줌</span>
+          <div class="step-control">
+            <button type="button" class="step-btn" id="btnZoomOut" title="축소">−</button>
+            <span class="step-value" id="zoomHint">100%</span>
+            <button type="button" class="step-btn" id="btnZoomIn" title="확대">＋</button>
+          </div>
+        </div>
+        <div class="view-control">
+          <span class="view-label">글자</span>
+          <div class="step-control">
+            <button type="button" class="step-btn" id="btnFontSmall" title="글자 줄이기">−</button>
+            <span class="step-value" id="fontHint">기본</span>
+            <button type="button" class="step-btn" id="btnFontBig" title="글자 키우기">＋</button>
+          </div>
+        </div>
+        <div class="view-control" style="flex-direction:column; align-items:stretch; gap:0;">
+          <span class="view-label" style="margin-bottom:5px;">음영 방향</span>
+          <select id="shadeLightSelect" class="shade-select" title="광원: 오른쪽 또는 왼쪽에서 비출 때 밝은 면">
+            <option value="right">빛 → 오른쪽</option>
+            <option value="left">빛 → 왼쪽</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- 사용 방법 -->
+      <div class="sidebar-section" style="flex:1; border-bottom:none;">
+        <div class="sidebar-label">사용 방법</div>
+        <p class="sidebar-hint">
+          1단계: 드래그로 회색 바닥 그리기<br>
+          2단계: 바닥 위 드래그 → 방 생성<br>
+          더블클릭: 방 이름·유형 편집<br>
+          Space+드래그: 캔버스 이동<br>
+          Del: 선택 항목 삭제
+        </p>
+      </div>
+
+    </aside>
+
+    <!-- Canvas -->
+    <div class="canvas-area">
+      <div class="wrap" tabindex="0" id="canvasWrap">
+        <svg id="svgStage" width="900" height="600" viewBox="0 0 900 600"></svg>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="edit-input-wrap" id="editWrap">
+    <div class="edit-input-box">
+      <div class="edit-type-row">
+        <span class="edit-type-label">유형</span>
+        <label class="edit-radio-label"><input type="radio" name="editRoomType" value="room" id="editTypeRoom" checked /> 방</label>
+        <label class="edit-radio-label"><input type="radio" name="editRoomType" value="counter" id="editTypeCounter" /> 카운터</label>
+        <label class="edit-radio-label"><input type="radio" name="editRoomType" value="facility" id="editTypeFacility" /> 시설</label>
+        <label class="edit-radio-label"><input type="radio" name="editRoomType" value="door" id="editTypeDoor" /> 출입문</label>
+      </div>
+      <label for="editLabel">윗면 (예: 1번)</label>
+      <input type="text" id="editLabel" placeholder="1번" maxlength="20" />
+      <label for="editLabelCode">앞면 (예: S1)</label>
+      <input type="text" id="editLabelCode" placeholder="S1" maxlength="20" />
+      <div class="edit-type-row">
+        <span class="edit-type-label">앞면 방향</span>
+        <label class="edit-radio-label"><input type="radio" name="editFaceSide" value="right" id="editFaceRight" checked /> 오른쪽면</label>
+        <label class="edit-radio-label"><input type="radio" name="editFaceSide" value="left" id="editFaceLeft" /> 왼쪽면</label>
+      </div>
+      <div class="edit-type-row" style="align-items:center;">
+        <span class="edit-type-label">각도</span>
+        <span id="editRotationValue" style="min-width:3em;">0°</span>
+        <button type="button" id="editRotationPrev" title="15° 반시계">←</button>
+        <button type="button" id="editRotationNext" title="15° 시계">→</button>
+      </div>
+      <div class="edit-type-row" style="align-items:center;">
+        <span class="edit-type-label">앞뒤</span>
+        <button type="button" id="editZBack" style="padding:2px 10px;font-size:12px;cursor:pointer">▼ 뒤로</button>
+        <button type="button" id="editZFront" style="padding:2px 10px;font-size:12px;cursor:pointer">▲ 앞으로</button>
+        <span id="editZValue" style="font-size:11px;color:#888;min-width:2em"></span>
+      </div>
+      <div class="edit-buttons">
+        <button type="button" id="editCancel">취소</button>
+        <button type="button" class="primary" id="editOk">확인</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="edit-input-wrap" id="kioskEditWrap">
+    <div class="edit-input-box">
+      <div class="panel-title" style="margin-bottom:12px">키오스크 설정</div>
+      <label class="edit-type-label" for="kioskScaleInput">크기</label>
+      <input id="kioskScaleInput" type="range" min="50" max="150" step="10" value="100" />
+      <span id="kioskScaleLabel" style="font-size:12px; color:#555;">100%</span>
+      <div class="edit-buttons">
+        <button type="button" class="primary" id="kioskFlipBtn">방향 반대로</button>
+        <button type="button" id="kioskEditClose">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="edit-input-wrap" id="roomMapWrap">
+    <div class="edit-input-box" style="min-width: 520px; max-width: 92vw;">
+      <div class="panel-title" style="margin-bottom:10px">각 방에 연결할 어드민 룸 넘버를 연결해주세요!</div>
+      <div style="font-size:12px; color:#666; line-height:1.4; margin-bottom:12px;">
+        어드민에서 확인한 방 번호를 각 칸에 넣으면, SVG 저장 시 해당 방에 room_id 속성이 들어갑니다.
+      </div>
+      <div id="roomMapList" style="max-height: 320px; overflow-y: auto;"></div>
+      <div style="display:flex; justify-content:space-between; gap:10px; margin-top:10px; align-items:center; flex-wrap:wrap;">
+        <div id="roomMapStatus" style="font-size:12px; color:#666;"></div>
+        <div class="edit-buttons" style="margin-top:0;">
+          <button type="button" id="roomMapClear">초기화</button>
+          <button type="button" id="roomMapClose">닫기</button>
+          <button type="button" class="primary" id="roomMapSave">저장</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+(function() {
+  var SVG_NS = 'http://www.w3.org/2000/svg';
+  var VIEW_W = 900;
+  var VIEW_H = 600;
+  var GRID_COLS = 31;
+  var GRID_ROWS = 31;
+  /** 바닥/방을 그릴 수 있는 격자 범위 한계 (무제한에 가깝게). 좌표는 -GRID_LIMIT ~ GRID_LIMIT. */
+  var GRID_LIMIT = 10000;
+  var ROOM_HEIGHT = 60; // 방 높이 조금 더 키움
+  /** 방 라벨 글자 크기 (윗면·앞면 공통 조절) */
+  var roomLabelFontSizeTop = 11;
+  var roomLabelFontSizeFace = 13;
+  /** 캔버스 확대/축소. 1=100%, 0.5=축소(더 많은 영역), 1.5=확대 */
+  var zoomLevel = 1;
+  /** 1이면 발판이 격자 다이아와 동일. (확대 시 인접 방과 겹칠 수 있음) */
+  var ROOM_FOOTPRINT_SCALE = 1;
+  /** 방 가장자리 오프셋(px). 0이면 격자와 여백 없이 맞춤. */
+  var ROOM_EDGE_OFFSET_PX = 0;
+  // 최소 방 크기를 1칸까지 허용 (요청: 한 칸/두 칸 방도 그릴 수 있게)
+  var MIN_ROOM_WIDTH = 1;
+  var MIN_ROOM_HEIGHT = 1;
+  /** 1이면 회색 바닥 타일이 격자 다이아몬드와 동일 크기(여백 없음). */
+  var FLOOR_TILE_SCALE = 1;
+
+  /** 가이드 격자를 작업 영역 밖으로 얼마나 더 그릴지 (칸 수). 크게 하면 축소 시 무한대로 보이는 가이드선. */
+  var GRID_GUIDE_EXTEND = 50;
+
+  var extent = GRID_COLS + GRID_ROWS - 2;
+  var TILE_W = (VIEW_W * 2) / extent;
+  var TILE_H = (VIEW_H * 2) / extent;
+  var CENTER_X = VIEW_W / 2;
+  var CENTER_Y = 0;
+  var HW = TILE_W / 2;
+  var HH = TILE_H / 2;
+
+  var svg = document.getElementById('svgStage');
+  var zoomGroup = document.createElementNS(SVG_NS, 'g');
+  zoomGroup.setAttribute('id', 'zoomGroup');
+  svg.appendChild(zoomGroup);
+  var gridLayer = document.createElementNS(SVG_NS, 'g');
+  gridLayer.setAttribute('id', 'gridLayer');
+  zoomGroup.appendChild(gridLayer);
+
+  var floorLayer = document.createElementNS(SVG_NS, 'g');
+  floorLayer.setAttribute('id', 'floorLayer');
+  zoomGroup.appendChild(floorLayer);
+
+  var roomLayer = document.createElementNS(SVG_NS, 'g');
+  roomLayer.setAttribute('id', 'roomLayer');
+  zoomGroup.appendChild(roomLayer);
+
+  var linkLayer = document.createElementNS(SVG_NS, 'g');
+  linkLayer.setAttribute('id', 'linkLayer');
+  zoomGroup.appendChild(linkLayer);
+
+  var kioskLayer = document.createElementNS(SVG_NS, 'g');
+  kioskLayer.setAttribute('id', 'kioskLayer');
+  zoomGroup.appendChild(kioskLayer);
+
+  var floorRegions = [];
+  var floorIdCounter = 0;
+  var rooms = [];
+  var roomIdCounter = 0;
+  var kiosks = []; // { x, y, flipped, scale }
+  var dragStart = null;
+  var dragCurrent = null;
+  var dragSizeHintEl = null;
+  var editingRoomId = null;
+  var draggingKiosk = false;
+  var kioskGhost = null;
+  var draggingRoomAsset = null;
+  var roomAssetGhost = null;
+  var movingKioskIndex = null;
+  var moveKioskStart = null;
+  var editingKioskIndex = null;
+  var movingRoomId = null;
+  var movingRoomStart = null;
+  var movingRoomPreview = null;
+  var resizingRoomId = null;
+  var resizeEdge = null;
+  var pendingResizeRoomId = null;
+  var pendingResizeEdge = null;
+  var pendingResizeStart = null;
+  var selectedRoomId = null;
+  var selectedKioskIndex = null;
+  var selectedPenFloorId = null;
+  var copiedRoom = null;
+  var lastClickRoomId = null;
+  var lastClickTime = 0;
+  var DOUBLE_CLICK_MS = 350;
+  var roomIdMap = Object.create(null); // { roomNumber: adminRoomIdString }
+  /** 연결된 방 쌍 (양방향 화살표 표시). { id, a: roomId, b: roomId } */
+  var roomLinks = [];
+  var roomLinkIdCounter = 0;
+  var linkPickMode = false;
+  var linkPickFirstRoomId = null;
+  var movingWorld = false;
+  var worldDragStart = null;
+  var worldDragCur = null;
+  var historyStack = [];
+  var eraserMode = false;
+  var penMode = false;
+  var penPoints = [];
+  var _expRot = null; /* export 회전: { deg, cx, cy } 또는 null */
+  var _expCodeFaces = null; /* export 코드 위치 오버라이드: { roomId: 'auto'|'left'|'right' } */
+  var panX = 0, panY = 0;
+  /** 방 옆면 음영: 'right'=오른쪽에서 빛(화면 X 큰 면이 밝음), 'left'=왼쪽에서 빛 */
+  var sideShadeLightFrom = 'right';
+  var spaceKeyDown = false;
+  var isPanning = false;
+  var panStartClientX = 0, panStartClientY = 0, panStartPanX = 0, panStartPanY = 0;
+
+  function cloneState() {
+    return {
+      floorRegions: JSON.parse(JSON.stringify(floorRegions)),
+      floorIdCounter: floorIdCounter,
+      rooms: JSON.parse(JSON.stringify(rooms)),
+      roomIdCounter: roomIdCounter,
+      kiosks: JSON.parse(JSON.stringify(kiosks)),
+      roomLinks: JSON.parse(JSON.stringify(roomLinks)),
+      roomLinkIdCounter: roomLinkIdCounter,
+      sideShadeLightFrom: sideShadeLightFrom
+    };
+  }
+
+  /** 도면 저장용 전체 상태 (localStorage 저장/불러오기용) */
+  function getStateForSave() {
+    return {
+      floorRegions: JSON.parse(JSON.stringify(floorRegions)),
+      floorIdCounter: floorIdCounter,
+      rooms: JSON.parse(JSON.stringify(rooms)),
+      roomIdCounter: roomIdCounter,
+      kiosks: JSON.parse(JSON.stringify(kiosks)),
+      roomLinks: JSON.parse(JSON.stringify(roomLinks)),
+      roomLinkIdCounter: roomLinkIdCounter,
+      roomIdMap: Object.assign(Object.create(null), roomIdMap),
+      planName: (document.getElementById('planFilename') && document.getElementById('planFilename').value.trim()) || '',
+      sideShadeLightFrom: sideShadeLightFrom
+    };
+  }
+
+  function syncShadeLightSelectUI() {
+    var sel = document.getElementById('shadeLightSelect');
+    if (!sel) return;
+    sel.value = sideShadeLightFrom === 'left' ? 'left' : 'right';
+  }
+
+  function restoreState(state) {
+    if (!state) return;
+    floorRegions = JSON.parse(JSON.stringify(state.floorRegions || []));
+    floorIdCounter = state.floorIdCounter || 0;
+    rooms = JSON.parse(JSON.stringify(state.rooms || []));
+    roomIdCounter = state.roomIdCounter || 0;
+    kiosks = JSON.parse(JSON.stringify(state.kiosks || []));
+    roomLinks = JSON.parse(JSON.stringify(state.roomLinks || []));
+    roomLinkIdCounter = state.roomLinkIdCounter || 0;
+    if (state.roomIdMap && typeof state.roomIdMap === 'object') {
+      roomIdMap = Object.assign(Object.create(null), state.roomIdMap);
+    }
+    if (state.sideShadeLightFrom === 'left' || state.sideShadeLightFrom === 'right') {
+      sideShadeLightFrom = state.sideShadeLightFrom;
+    } else if (typeof state.sideShadeLightAngleDeg === 'number' && !isNaN(state.sideShadeLightAngleDeg)) {
+      sideShadeLightFrom = (state.sideShadeLightAngleDeg === 180) ? 'left' : 'right';
+    }
+    syncShadeLightSelectUI();
+    selectedRoomId = null;
+    selectedKioskIndex = null;
+    lastClickRoomId = null;
+    lastClickTime = 0;
+    ensureFloorUnderRooms();
+    renderFloors();
+    renderRooms();
+    renderRoomLinks();
+    renderKiosks();
+    buildGrid();
+  }
+
+  /** 바닥 영역이 비어 있는데 방이 있으면, 방 위치로 바닥을 복구한다 (예: 예전 저장본 불러올 때). */
+  function ensureFloorUnderRooms() {
+    if (floorRegions.length > 0) return;
+    for (var i = 0; i < rooms.length; i++) {
+      var room = rooms[i];
+      floorIdCounter++;
+      floorRegions.push({ id: floorIdCounter, c0: room.c0, r0: room.r0, c1: room.c1, r1: room.r1 });
+    }
+  }
+
+  function pushHistory() {
+    try {
+      historyStack.push(cloneState());
+      if (historyStack.length > 100) historyStack.shift();
+    } catch (e) {
+      // ignore history errors
+    }
+  }
+
+  function undoLast() {
+    if (!historyStack.length) return;
+    var prev = historyStack.pop();
+    restoreState(prev);
+  }
+
+  function loadRoomIdMap() {
+    try {
+      var raw = localStorage.getItem('roomIdMap_v1');
+      if (!raw) return;
+      var obj = JSON.parse(raw);
+      roomIdMap = Object.create(null);
+      for (var k in obj) {
+        if (!Object.prototype.hasOwnProperty.call(obj, k)) continue;
+        var kk = String(k).trim();
+        var vv = String(obj[k]).trim();
+        if (kk && vv) roomIdMap[kk] = vv;
+      }
+    } catch (e) {}
+  }
+  function saveRoomIdMap() {
+    try { localStorage.setItem('roomIdMap_v1', JSON.stringify(roomIdMap)); } catch (e) {}
+  }
+  function getRoomNumberFromLabel(label, fallbackId) {
+    var t = String(label || '').trim();
+    var m = t.match(/(\d+)/);
+    if (m) return m[1];
+    return String(fallbackId || '').trim();
+  }
+  function parseRoomMapText(text) {
+    var map = Object.create(null);
+    var lines = String(text || '').split(/\r?\n/);
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trim();
+      if (!line) continue;
+      // "1번:247061", "1번 247061", "1:247061" 등에서 숫자 2개를 뽑음
+      var nums = line.match(/\d+/g);
+      if (!nums || nums.length < 2) continue;
+      var roomNo = nums[0];
+      var adminId = nums[1];
+      map[roomNo] = adminId;
+    }
+    return map;
+  }
+  function mapToText(map) {
+    var keys = Object.keys(map).sort(function(a, b) { return parseInt(a, 10) - parseInt(b, 10); });
+    return keys.map(function(k) { return k + '번:' + map[k]; }).join('\n');
+  }
+
+  function getSVGPoint(e) {
+    var pt = svg.createSVGPoint();
+    pt.x = e.clientX;
+    pt.y = e.clientY;
+    var ctm = svg.getScreenCTM();
+    if (!ctm) return { x: 0, y: 0 };
+    var svgP = pt.matrixTransform(ctm.inverse());
+    var tx = (VIEW_W / 2) * (1 - zoomLevel);
+    var ty = (VIEW_H / 2) * (1 - zoomLevel);
+    /* zoomGroup 역변환 (줌·팬) */
+    var ux = (svgP.x - tx - panX) / zoomLevel;
+    var uy = (svgP.y - ty - panY) / zoomLevel;
+    return { x: ux, y: uy };
+  }
+
+  function applyZoom() {
+    var tx = (VIEW_W / 2) * (1 - zoomLevel);
+    var ty = (VIEW_H / 2) * (1 - zoomLevel);
+    zoomGroup.setAttribute('transform', 'translate(' + (tx + panX) + ',' + (ty + panY) + ') scale(' + zoomLevel + ')');
+    var hint = document.getElementById('zoomHint');
+    if (hint) hint.textContent = Math.round(zoomLevel * 100) + '%';
+  }
+
+  function gridToScreen(c, r) {
+    var x = CENTER_X + (c - r) * (TILE_W / 2);
+    var y = CENTER_Y + (c + r) * (TILE_H / 2);
+    return { x: x, y: y };
+  }
+
+  /** 격자 모서리(꼭짓점) 좌표 → 스크린. vc, vr는 0.5 단위 (예: c+0.5, r) */
+  function vertexToScreen(vc, vr) {
+    var c = Math.floor(vc), r = Math.floor(vr);
+    var base = gridToScreen(c, r);
+    var dc = vc - c, dr = vr - r;
+    if (dc > 0.25 && dc < 0.75) return { x: base.x + HW, y: base.y };
+    if (dr > 0.25 && dr < 0.75) return { x: base.x, y: base.y + HH };
+    if (dc <= 0.25 && c > -GRID_LIMIT) {
+      var left = gridToScreen(c - 1, r);
+      return { x: left.x + HW, y: left.y };
+    }
+    if (dr <= 0.25 && r > -GRID_LIMIT) {
+      var top = gridToScreen(c, r - 1);
+      return { x: top.x, y: top.y + HH };
+    }
+    return base;
+  }
+
+  /** 클릭 위치에서 가장 가까운 격자 모서리(꼭짓점). 반환값은 { vc, vr } (0.5 단위). */
+  function getGridVertexAtPoint(sx, sy) {
+    var col = Math.round(((sx - CENTER_X) / HW + (sy - CENTER_Y) / HH) / 2);
+    var row = Math.round(((sy - CENTER_Y) / HH - (sx - CENTER_X) / HW) / 2);
+    var candidates = [
+      { vc: col + 0.5, vr: row },
+      { vc: col, vr: row + 0.5 },
+      { vc: col - 0.5, vr: row },
+      { vc: col, vr: row - 0.5 }
+    ];
+    var best = candidates[0];
+    var bestDist = 1e9;
+    for (var i = 0; i < candidates.length; i++) {
+      var pt = vertexToScreen(candidates[i].vc, candidates[i].vr);
+      var d = (pt.x - sx) * (pt.x - sx) + (pt.y - sy) * (pt.y - sy);
+      if (d < bestDist) { bestDist = d; best = candidates[i]; }
+    }
+    return best;
+  }
+
+  function getDiamondPoints(c, r) {
+    var p = gridToScreen(c, r);
+    return [
+      p.x + ',' + (p.y - HH),
+      (p.x + HW) + ',' + p.y,
+      p.x + ',' + (p.y + HH),
+      (p.x - HW) + ',' + p.y
+    ].join(' ');
+  }
+
+  /** 바닥(회색) 타일용: 격자 다이아몬드를 중심 기준으로 FLOOR_TILE_SCALE만큼 축소한 점들 */
+  function getFloorDiamondPoints(c, r) {
+    var p = gridToScreen(c, r);
+    var p0 = { x: p.x, y: p.y - HH };
+    var p1 = { x: p.x + HW, y: p.y };
+    var p2 = { x: p.x, y: p.y + HH };
+    var p3 = { x: p.x - HW, y: p.y };
+    var cx = (p0.x + p1.x + p2.x + p3.x) / 4;
+    var cy = (p0.y + p1.y + p2.y + p3.y) / 4;
+    var s = FLOOR_TILE_SCALE;
+    p0 = { x: cx + (p0.x - cx) * s, y: cy + (p0.y - cy) * s };
+    p1 = { x: cx + (p1.x - cx) * s, y: cy + (p1.y - cy) * s };
+    p2 = { x: cx + (p2.x - cx) * s, y: cy + (p2.y - cy) * s };
+    p3 = { x: cx + (p3.x - cx) * s, y: cy + (p3.y - cy) * s };
+    return [ p0.x + ',' + p0.y, p1.x + ',' + p1.y, p2.x + ',' + p2.y, p3.x + ',' + p3.y ].join(' ');
+  }
+
+  /** 바닥 영역들을 칸 단위가 아닌, 외곽선만 이은 하나(또는 여러)의 path d 문자열로 만든다. */
+  function buildFloorMergedPathD(options) {
+    options = options || {};
+    var mergePolygonAsCells = options.mergePolygonAsCells !== false;
+    function keyPt(x, y) { return x.toFixed(2) + ',' + y.toFixed(2); }
+    function parsePt(k) { var sp = k.split(','); return { x: parseFloat(sp[0]), y: parseFloat(sp[1]) }; }
+    function edgeKey(a, b) { return (a < b) ? (a + '|' + b) : (b + '|' + a); }
+    var edgeCount = Object.create(null);
+    var edgeEnds = Object.create(null);
+    var verts = Object.create(null);
+    for (var i = 0; i < floorRegions.length; i++) {
+      var region = floorRegions[i];
+      var cellsToAdd = [];
+      if (region.type === 'polygon' && region.points && region.points.length >= 3) {
+        if (!mergePolygonAsCells) continue;
+        cellsToAdd = polygonPointsToCells(region.points);
+      } else if (region.c0 <= region.c1 && region.r0 <= region.r1) {
+        for (var rr = region.r0; rr <= region.r1; rr++) {
+          for (var cc = region.c0; cc <= region.c1; cc++) {
+            cellsToAdd.push({ col: cc, row: rr });
+          }
+        }
+      }
+      for (var idx = 0; idx < cellsToAdd.length; idx++) {
+        var c = cellsToAdd[idx].col, r = cellsToAdd[idx].row;
+          var ptsStr = getDiamondPoints(c, r).split(' ');
+          if (ptsStr.length !== 4) continue;
+          var a0 = ptsStr[0].split(','), a1 = ptsStr[1].split(','), a2 = ptsStr[2].split(','), a3 = ptsStr[3].split(',');
+          var v0 = keyPt(parseFloat(a0[0]), parseFloat(a0[1]));
+          var v1 = keyPt(parseFloat(a1[0]), parseFloat(a1[1]));
+          var v2 = keyPt(parseFloat(a2[0]), parseFloat(a2[1]));
+          var v3 = keyPt(parseFloat(a3[0]), parseFloat(a3[1]));
+          if (!verts[v0]) verts[v0] = parsePt(v0);
+          if (!verts[v1]) verts[v1] = parsePt(v1);
+          if (!verts[v2]) verts[v2] = parsePt(v2);
+          if (!verts[v3]) verts[v3] = parsePt(v3);
+          var e01 = edgeKey(v0, v1), e12 = edgeKey(v1, v2), e23 = edgeKey(v2, v3), e30 = edgeKey(v3, v0);
+          edgeEnds[e01] = edgeEnds[e01] || [v0, v1];
+          edgeEnds[e12] = edgeEnds[e12] || [v1, v2];
+          edgeEnds[e23] = edgeEnds[e23] || [v2, v3];
+          edgeEnds[e30] = edgeEnds[e30] || [v3, v0];
+          edgeCount[e01] = (edgeCount[e01] || 0) + 1;
+          edgeCount[e12] = (edgeCount[e12] || 0) + 1;
+          edgeCount[e23] = (edgeCount[e23] || 0) + 1;
+          edgeCount[e30] = (edgeCount[e30] || 0) + 1;
+      }
+    }
+    var adj = Object.create(null);
+    var boundaryEdges = [];
+    for (var ek in edgeCount) {
+      if (edgeCount[ek] === 1) {
+        boundaryEdges.push(ek);
+        var ends = edgeEnds[ek];
+        var a = ends[0], b = ends[1];
+        if (!adj[a]) adj[a] = [];
+        if (!adj[b]) adj[b] = [];
+        adj[a].push(b);
+        adj[b].push(a);
+      }
+    }
+    var visitedEdge = Object.create(null);
+    function takeAny() {
+      for (var i = 0; i < boundaryEdges.length; i++) {
+        var k = boundaryEdges[i];
+        if (!visitedEdge[k]) return k;
+      }
+      return null;
+    }
+    function simplifyPolygon(points) {
+      var out = [];
+      var n = points.length;
+      for (var i = 0; i < n; i++) {
+        var a = points[(i + n - 1) % n];
+        var b = points[i];
+        var c = points[(i + 1) % n];
+        var cross = (b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x);
+        if (Math.abs(cross) > 0.5) out.push(b);
+      }
+      return out.length < 3 ? points : out;
+    }
+    var pathD = '';
+    function nextBoundaryVertex(prevKey, currKey) {
+      var curr = parsePt(currKey);
+      var prev = parsePt(prevKey);
+      var neigh = adj[currKey] || [];
+      if (neigh.length === 0) return null;
+      if (neigh.length === 1) return neigh[0];
+      var dx = prev.x - curr.x, dy = prev.y - curr.y;
+      var best = null;
+      var bestCross = -Infinity;
+      var bestDistSq = -1;
+      var EPS = 0.001;
+      var leftTurns = [];
+      for (var i = 0; i < neigh.length; i++) {
+        if (neigh[i] === prevKey) continue;
+        var n = parsePt(neigh[i]);
+        var cross = dx * (n.y - curr.y) - dy * (n.x - curr.x);
+        var distSq = (n.x - curr.x) * (n.x - curr.x) + (n.y - curr.y) * (n.y - curr.y);
+        if (cross > EPS) leftTurns.push({ key: neigh[i], cross: cross, distSq: distSq });
+        else if (cross > bestCross || (cross === bestCross && distSq > bestDistSq)) {
+          bestCross = cross;
+          bestDistSq = distSq;
+          best = neigh[i];
+        }
+      }
+      if (leftTurns.length > 0) {
+        leftTurns.sort(function(a, b) { return a.cross - b.cross || a.distSq - b.distSq; });
+        best = leftTurns[0].key;
+      }
+      return best;
+    }
+    while (true) {
+      var seed = takeAny();
+      if (!seed) break;
+      var se = edgeEnds[seed];
+      var start = se[0];
+      var curr = start;
+      var prev = se[1];
+      var loop = [start];
+      visitedEdge[seed] = true;
+      curr = prev;
+      loop.push(curr);
+      var safety = 0;
+      while (curr !== start && safety++ < 200000) {
+        var nextKey = nextBoundaryVertex(loop[loop.length - 2], curr);
+        if (!nextKey) break;
+        var ekey = edgeKey(curr, nextKey);
+        if (visitedEdge[ekey]) break;
+        visitedEdge[ekey] = true;
+        prev = curr;
+        curr = nextKey;
+        loop.push(curr);
+      }
+      if (loop.length > 1 && loop[0] === loop[loop.length - 1]) {
+        loop.pop();
+      }
+      if (loop.length >= 4) {
+        var distinct = Object.create(null);
+        for (var li = 0; li < loop.length; li++) distinct[loop[li]] = true;
+        if (Object.keys(distinct).length >= 4) {
+          var loopPts = [];
+          for (var li = 0; li < loop.length; li++) loopPts.push(verts[loop[li]]);
+          var area = 0;
+          for (var ai = 0; ai < loopPts.length; ai++) {
+            var a = loopPts[ai], b = loopPts[(ai + 1) % loopPts.length];
+            area += a.x * b.y - b.x * a.y;
+          }
+          area = Math.abs(area) * 0.5;
+          if (area >= (HW * HH) * 0.05) {
+            pathD += 'M ' + loopPts[0].x + ' ' + loopPts[0].y + ' ';
+            for (var si = 1; si < loopPts.length; si++) pathD += 'L ' + loopPts[si].x + ' ' + loopPts[si].y + ' ';
+            pathD += 'Z ';
+          }
+        }
+      }
+    }
+    return pathD.trim();
+  }
+
+  /**
+   * 직사각형 격자 칸들의 다이아몬드 타일 합집합 외곽선(시계 방향 꼭짓점).
+   * 1×N 등 세로/가로로만 이어진 방도 실제 바닥 윤곽과 일치하게 한다.
+   */
+  function getOrderedBoundaryVerticesFromCells(cellsToAdd) {
+    if (!cellsToAdd || cellsToAdd.length === 0) return null;
+    var keyPt = function(x, y) { return x.toFixed(2) + ',' + y.toFixed(2); };
+    var parsePt = function(k) { var sp = k.split(','); return { x: parseFloat(sp[0]), y: parseFloat(sp[1]) }; };
+    function edgeKey(a, b) { return (a < b) ? (a + '|' + b) : (b + '|' + a); }
+    var edgeCount = Object.create(null);
+    var edgeEnds = Object.create(null);
+    var verts = Object.create(null);
+    for (var idx = 0; idx < cellsToAdd.length; idx++) {
+      var c = cellsToAdd[idx].col, r = cellsToAdd[idx].row;
+      var ptsStr = getDiamondPoints(c, r).split(' ');
+      if (ptsStr.length !== 4) continue;
+      var a0 = ptsStr[0].split(','), a1 = ptsStr[1].split(','), a2 = ptsStr[2].split(','), a3 = ptsStr[3].split(',');
+      var v0 = keyPt(parseFloat(a0[0]), parseFloat(a0[1]));
+      var v1 = keyPt(parseFloat(a1[0]), parseFloat(a1[1]));
+      var v2 = keyPt(parseFloat(a2[0]), parseFloat(a2[1]));
+      var v3 = keyPt(parseFloat(a3[0]), parseFloat(a3[1]));
+      if (!verts[v0]) verts[v0] = parsePt(v0);
+      if (!verts[v1]) verts[v1] = parsePt(v1);
+      if (!verts[v2]) verts[v2] = parsePt(v2);
+      if (!verts[v3]) verts[v3] = parsePt(v3);
+      var e01 = edgeKey(v0, v1), e12 = edgeKey(v1, v2), e23 = edgeKey(v2, v3), e30 = edgeKey(v3, v0);
+      edgeEnds[e01] = edgeEnds[e01] || [v0, v1];
+      edgeEnds[e12] = edgeEnds[e12] || [v1, v2];
+      edgeEnds[e23] = edgeEnds[e23] || [v2, v3];
+      edgeEnds[e30] = edgeEnds[e30] || [v3, v0];
+      edgeCount[e01] = (edgeCount[e01] || 0) + 1;
+      edgeCount[e12] = (edgeCount[e12] || 0) + 1;
+      edgeCount[e23] = (edgeCount[e23] || 0) + 1;
+      edgeCount[e30] = (edgeCount[e30] || 0) + 1;
+    }
+    var adj = Object.create(null);
+    var boundaryEdges = [];
+    for (var ek in edgeCount) {
+      if (edgeCount[ek] === 1) {
+        boundaryEdges.push(ek);
+        var ends = edgeEnds[ek];
+        var a = ends[0], b = ends[1];
+        if (!adj[a]) adj[a] = [];
+        if (!adj[b]) adj[b] = [];
+        adj[a].push(b);
+        adj[b].push(a);
+      }
+    }
+    function nextBoundaryVertex(prevKey, currKey) {
+      var curr = parsePt(currKey);
+      var prev = parsePt(prevKey);
+      var neigh = adj[currKey] || [];
+      if (neigh.length === 0) return null;
+      if (neigh.length === 1) return neigh[0];
+      var dx = prev.x - curr.x, dy = prev.y - curr.y;
+      var best = null;
+      var bestCross = -Infinity;
+      var bestDistSq = -1;
+      var EPS = 0.001;
+      var leftTurns = [];
+      for (var i = 0; i < neigh.length; i++) {
+        if (neigh[i] === prevKey) continue;
+        var n = parsePt(neigh[i]);
+        var cross = dx * (n.y - curr.y) - dy * (n.x - curr.x);
+        var distSq = (n.x - curr.x) * (n.x - curr.x) + (n.y - curr.y) * (n.y - curr.y);
+        if (cross > EPS) leftTurns.push({ key: neigh[i], cross: cross, distSq: distSq });
+        else if (cross > bestCross || (cross === bestCross && distSq > bestDistSq)) {
+          bestCross = cross;
+          bestDistSq = distSq;
+          best = neigh[i];
+        }
+      }
+      if (leftTurns.length > 0) {
+        leftTurns.sort(function(a, b) { return a.cross - b.cross || a.distSq - b.distSq; });
+        best = leftTurns[0].key;
+      }
+      return best;
+    }
+    var visitedEdge = Object.create(null);
+    var seed = null;
+    for (var si = 0; si < boundaryEdges.length; si++) {
+      if (!visitedEdge[boundaryEdges[si]]) { seed = boundaryEdges[si]; break; }
+    }
+    if (!seed) return null;
+    var se = edgeEnds[seed];
+    var start = se[0];
+    var curr = start;
+    var prev = se[1];
+    var loop = [start];
+    visitedEdge[seed] = true;
+    curr = prev;
+    loop.push(curr);
+    var safety = 0;
+    while (curr !== start && safety++ < 200000) {
+      var nextKey = nextBoundaryVertex(loop[loop.length - 2], curr);
+      if (!nextKey) break;
+      var ekey = edgeKey(curr, nextKey);
+      if (visitedEdge[ekey]) break;
+      visitedEdge[ekey] = true;
+      prev = curr;
+      curr = nextKey;
+      loop.push(curr);
+    }
+    /* 닫힌 다각형에서 시작 키가 끝에 한 번 더 들어가면 simplify가 직선으로 오인해 꼭짓점이 3개만 남는 버그가 난다 */
+    if (loop.length > 1 && loop[0] === loop[loop.length - 1]) {
+      loop.pop();
+    }
+    if (loop.length < 4) return null;
+    var distinct = Object.create(null);
+    for (var li = 0; li < loop.length; li++) distinct[loop[li]] = true;
+    if (Object.keys(distinct).length < 4) return null;
+    var loopPts = [];
+    for (var lj = 0; lj < loop.length; lj++) loopPts.push(verts[loop[lj]]);
+    if (loopPts.length > 1) {
+      var f0 = loopPts[0], l0 = loopPts[loopPts.length - 1];
+      if (Math.abs(f0.x - l0.x) < 1e-6 && Math.abs(f0.y - l0.y) < 1e-6) loopPts.pop();
+    }
+    var area = 0;
+    for (var ai = 0; ai < loopPts.length; ai++) {
+      var a = loopPts[ai], b = loopPts[(ai + 1) % loopPts.length];
+      area += a.x * b.y - b.x * a.y;
+    }
+    area = Math.abs(area) * 0.5;
+    if (area < (HW * HH) * 0.05) return null;
+    /* 방 프리즘용: 공선 제거는 바닥 path용으로만 쓰고, 여기서는 원본 외곽 유지(삼각형 붕괴 방지) */
+    return loopPts;
+  }
+
+  function screenToGrid(sx, sy) {
+    var rx = sx - CENTER_X;
+    var ry = sy - CENTER_Y;
+    var c = (rx / (TILE_W / 2) + ry / TILE_H) / 2;
+    var r = (ry / TILE_H - rx / (TILE_W / 2)) / 2;
+    return { col: Math.round(c), row: Math.round(r) };
+  }
+
+  function pointInDiamond(px, py, c, r) {
+    var p = gridToScreen(c, r);
+    var dx = Math.abs(px - p.x);
+    var dy = py - p.y;
+    if (dy > HH || dy < -HH) return false;
+    var slope = HW / HH;
+    var boundAtY = HW - slope * Math.abs(dy);
+    return dx <= boundAtY;
+  }
+
+  function getCellAtPoint(sx, sy) {
+    var col = Math.round(((sx - CENTER_X) / HW + (sy - CENTER_Y) / HH) / 2);
+    var row = Math.round(((sy - CENTER_Y) / HH - (sx - CENTER_X) / HW) / 2);
+    if (pointInDiamond(sx, sy, col, row)) return { col: col, row: row };
+    var dr = [-1, 0, 1], dc = [-1, 0, 1];
+    for (var i = 0; i < 3; i++) {
+      for (var j = 0; j < 3; j++) {
+        if (dr[i] === 0 && dc[j] === 0) continue;
+        var cc = col + dc[j], rr = row + dr[i];
+        if (pointInDiamond(sx, sy, cc, rr)) return { col: cc, row: rr };
+      }
+    }
+    return { col: col, row: row };
+  }
+
+  /**
+   * 키오스크: 격자의 HW/HH를 그대로 사용해 아이소메트릭 3D 박스로 그린다.
+   * anchor (x, y) = 셀 중심 (gridToScreen(col, row)).
+   * flipped = true 이면 화면이 반대 면에 붙음.
+   * options.scale = 0.5~1.5 배율 (기본 1).
+   */
+  function createKioskGroup(x, y, flipped, options) {
+    options = options || {};
+    var includeOutline = options.includeOutline !== false;
+    var sc = (options.scale != null) ? options.scale : 1;
+    var flip = flipped ? -1 : 1;
+
+    /* 발판 크기: fw 셀 단위, 높이: kh px — 셀 중심 기준 대칭 마름모 */
+    var fw  = 0.7 * sc;
+    var kh  = 22 * sc;
+
+    /* 아이소메트릭 발판 반너비/반높이 */
+    var fhw = fw * HW;
+    var fhh = fw * HH;
+
+    /* 4개 꼭짓점 (anchor = 셀 중심 = 원점 기준 상대 좌표)
+       bF  = 정면 하단 (원점 아래)
+       bR  = 우측     (원점 옆, 기존 col 방향)
+       bBk = 후면 상단 (원점 위)
+       bL  = 좌측     (원점 옆, 기존 row 방향)
+       _t  = 각 꼭짓점을 kh 높이만큼 위로 올린 버전
+    */
+    var bF  = [0,              +fhh      ];
+    var bR  = [-flip * fhw,    0         ];
+    var bBk = [0,              -fhh      ];
+    var bL  = [ flip * fhw,    0         ];
+    var tF  = [0,              +fhh - kh ];
+    var tR  = [-flip * fhw,   -kh        ];
+    var tBk = [0,              -fhh - kh ];
+    var tL  = [ flip * fhw,   -kh        ];
+
+    function pts(arr) {
+      return arr.map(function(p) { return p[0]+','+p[1]; }).join(' ');
+    }
+    function lerp(a, b, t) {
+      return [a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t];
+    }
+
+    var g = document.createElementNS(SVG_NS, 'g');
+    g.setAttribute('class', 'kiosk-on-stage');
+    g.setAttribute('transform', 'translate('+x+','+y+')');
+
+    function poly(corners, fill) {
+      var el = document.createElementNS(SVG_NS, 'polygon');
+      el.setAttribute('points', pts(corners));
+      el.setAttribute('fill', fill);
+      el.setAttribute('stroke', 'none');
+      g.appendChild(el);
+    }
+    function circ(cx, cy, r, fill) {
+      var el = document.createElementNS(SVG_NS, 'circle');
+      el.setAttribute('cx', String(cx));
+      el.setAttribute('cy', String(cy));
+      el.setAttribute('r',  String(r));
+      el.setAttribute('fill', fill);
+      g.appendChild(el);
+    }
+
+    /* ── 측면: 정면→우측 (시청자 기준 오른쪽 면) ── */
+    poly([bF, bR, tR, tF], '#96c3bc');
+    /* ── 측면: 정면→좌측 (시청자 기준 왼쪽 면) ── */
+    poly([bF, bL, tL, tF], '#b7d2cd');
+    /* ── 윗면 (마름모) ── */
+    poly([tF, tR, tBk, tL], '#d5e7e3');
+
+    /* ── 빨간 화면 (오른쪽 면 안쪽에 끼워넣기) ── */
+    var s_bl = lerp(lerp(bF, bR, 0.14), lerp(tF, tR, 0.14), 0.09);
+    var s_br = lerp(lerp(bF, bR, 0.86), lerp(tF, tR, 0.86), 0.09);
+    var s_tr = lerp(lerp(bF, bR, 0.86), lerp(tF, tR, 0.86), 0.90);
+    var s_tl = lerp(lerp(bF, bR, 0.14), lerp(tF, tR, 0.14), 0.90);
+    poly([s_bl, s_br, s_tr, s_tl], '#ff0038');
+
+    /* ── 위치 핀 (후면 상단 위에) ── */
+    var pinBX = 0;
+    var pinBY = tBk[1];                   // 핀 꼬리가 닿는 Y (후면 상단)
+    var pinR  = fhw * 0.88;               // 핀 원 반지름
+    var pinCY = pinBY - pinR * 1.7;       // 핀 원 중심 Y
+
+    /* 꼬리 (삼각형) */
+    poly([
+      [pinBX - pinR * 0.38, pinBY - pinR * 0.6],
+      [pinBX + pinR * 0.38, pinBY - pinR * 0.6],
+      [pinBX,               pinBY              ]
+    ], '#ff1c40');
+
+    /* 원 */
+    circ(pinBX, pinCY, pinR, '#ff1c40');
+    /* 흰 구멍 */
+    circ(pinBX, pinCY, pinR * 0.42, '#ffffff');
+
+    /* ── 선택 외곽선 ── */
+    if (includeOutline) {
+      var allX = [bF,bR,bBk,bL,tF,tR,tBk,tL].map(function(p){return p[0];});
+      var allY = [bF,bR,bBk,bL,tF,tR,tBk,tL].map(function(p){return p[1];});
+      allY.push(pinCY - pinR - 2);
+      var pad = 3;
+      var ox = Math.min.apply(null, allX) - pad;
+      var oy = Math.min.apply(null, allY) - pad;
+      var ow = Math.max.apply(null, allX) - ox + pad;
+      var oh = Math.max.apply(null, allY) - oy + pad;
+      var outline = document.createElementNS(SVG_NS, 'rect');
+      outline.setAttribute('x', String(ox));
+      outline.setAttribute('y', String(oy));
+      outline.setAttribute('width',  String(ow));
+      outline.setAttribute('height', String(oh));
+      outline.setAttribute('fill', 'none');
+      outline.setAttribute('stroke', '#2563eb');
+      outline.setAttribute('stroke-dasharray', '4 3');
+      outline.setAttribute('stroke-width', '1.5');
+      outline.setAttribute('pointer-events', 'none');
+      outline.setAttribute('data-kiosk-outline', '1');
+      g.appendChild(outline);
+    }
+
+    return g;
+  }
+
+  function renderKiosks() {
+    kioskLayer.innerHTML = '';
+    var list = kiosks.map(function(k, idx) {
+      return { idx: idx, x: k.x, y: k.y, flipped: k.flipped, scale: (k.scale || 1) };
+    });
+    list.sort(function(a, b) {
+      return a.y - b.y;
+    });
+    for (var i = 0; i < list.length; i++) {
+      var item = list[i];
+      var g = createKioskGroup(item.x, item.y, item.flipped, { includeOutline: true, scale: item.scale });
+      g.setAttribute('data-kiosk-index', item.idx);
+      var outline = g.querySelector('[data-kiosk-outline="1"]');
+      if (outline) {
+        outline.style.display = (item.idx === selectedKioskIndex) ? 'block' : 'none';
+      }
+      kioskLayer.appendChild(g);
+    }
+  }
+
+  function buildGrid() {
+    gridLayer.innerHTML = '';
+    /* 바닥 인접 셀에서만 격자 표시 (바닥과 직접 닿는 셀만) */
+    var PAD_CELLS = 1;
+    var fMinC = Infinity, fMaxC = -Infinity, fMinR = Infinity, fMaxR = -Infinity;
+    for (var fi = 0; fi < floorRegions.length; fi++) {
+      var fr = floorRegions[fi];
+      if (fr.type === 'polygon' && fr.points) {
+        for (var pi = 0; pi < fr.points.length; pi++) {
+          var vc = fr.points[pi].vc, vr = fr.points[pi].vr;
+          if (vc !== undefined) {
+            var fc = Math.floor(vc), frc = Math.floor(vr);
+            if (fc < fMinC) fMinC = fc; if (fc > fMaxC) fMaxC = fc;
+            if (frc < fMinR) fMinR = frc; if (frc > fMaxR) fMaxR = frc;
+          }
+        }
+      } else if (fr.c0 !== undefined) {
+        if (fr.c0 < fMinC) fMinC = fr.c0; if (fr.c1 > fMaxC) fMaxC = fr.c1;
+        if (fr.r0 < fMinR) fMinR = fr.r0; if (fr.r1 > fMaxR) fMaxR = fr.r1;
+      }
+    }
+    if (fMinC === Infinity) { fMinC = 0; fMaxC = GRID_COLS - 1; fMinR = 0; fMaxR = GRID_ROWS - 1; }
+    var c0 = fMinC - PAD_CELLS, c1 = fMaxC + PAD_CELLS;
+    var r0 = fMinR - PAD_CELLS, r1 = fMaxR + PAD_CELLS;
+    for (var r = r0; r <= r1; r++) {
+      for (var c = c0; c <= c1; c++) {
+        if (isCellFloor(c, r)) continue;
+        /* 바닥에 인접한 셀만 격자 표시 (빈 배경에는 격자 없음) */
+        var hasNeighborFloor = isCellFloor(c-1,r) || isCellFloor(c+1,r) || isCellFloor(c,r-1) || isCellFloor(c,r+1);
+        if (!hasNeighborFloor) continue;
+        var poly = document.createElementNS(SVG_NS, 'polygon');
+        poly.setAttribute('points', getDiamondPoints(c, r));
+        poly.setAttribute('class', 'grid-tile');
+        gridLayer.appendChild(poly);
+      }
+    }
+  }
+
+  function renderFloors() {
+    floorLayer.innerHTML = '';
+    /* 바닥 배경: merged path로 격자 위를 완전히 덮음 (안티앨리어싱 갭 방지) */
+    var bgPathD = buildFloorMergedPathD({ mergePolygonAsCells: true });
+    if (bgPathD) {
+      var bgPath = document.createElementNS(SVG_NS, 'path');
+      bgPath.setAttribute('d', bgPathD);
+      bgPath.setAttribute('fill', '#d2d9e1');
+      bgPath.setAttribute('stroke', 'none');
+      bgPath.setAttribute('pointer-events', 'none');
+      floorLayer.appendChild(bgPath);
+    }
+    var cells = Object.create(null);
+    for (var i = 0; i < floorRegions.length; i++) {
+      var fr = floorRegions[i];
+      if (fr.type === 'polygon' && fr.points && fr.points.length >= 3) {
+        /* 펜 폴리곤: 단일 폴리곤으로 렌더링 (격자 타일 아님) */
+        var useVertex = typeof fr.points[0].vc !== 'undefined';
+        var ptStr = fr.points.map(function(p) {
+          var s = useVertex ? vertexToScreen(p.vc, p.vr) : gridToScreen(typeof p.col !== 'undefined' ? p.col : p.c, typeof p.row !== 'undefined' ? p.row : p.r);
+          return s.x + ',' + s.y;
+        }).join(' ');
+        /* 채운 폴리곤 */
+        var fillPoly = document.createElementNS(SVG_NS, 'polygon');
+        fillPoly.setAttribute('points', ptStr);
+        fillPoly.setAttribute('class', 'floor-tile');
+        if (fr.id === selectedPenFloorId) fillPoly.classList.add('floor-tile-selected');
+        fillPoly.setAttribute('stroke', 'none');
+        fillPoly.setAttribute('pointer-events', 'none');
+        floorLayer.appendChild(fillPoly);
+        /* 투명 히트 영역 (클릭 감지용) */
+        var hit = document.createElementNS(SVG_NS, 'polygon');
+        hit.setAttribute('points', ptStr);
+        hit.setAttribute('fill', 'rgba(0,0,0,0)');
+        hit.setAttribute('stroke', 'transparent');
+        hit.setAttribute('stroke-width', '24');
+        hit.setAttribute('class', 'floor-pen-hit');
+        hit.setAttribute('pointer-events', 'all');
+        hit.setAttribute('data-pen-floor-id', String(fr.id));
+        floorLayer.appendChild(hit);
+      } else {
+        if (fr.c0 > fr.c1 || fr.r0 > fr.r1) continue;
+        for (var r = fr.r0; r <= fr.r1; r++) {
+          for (var c = fr.c0; c <= fr.c1; c++) {
+            cells[c + ',' + r] = true;
+          }
+        }
+      }
+    }
+    for (var key in cells) {
+      var parts = key.split(',');
+      var c = parseInt(parts[0], 10), r = parseInt(parts[1], 10);
+      var poly = document.createElementNS(SVG_NS, 'polygon');
+      poly.setAttribute('points', getDiamondPoints(c, r));
+      poly.setAttribute('class', 'floor-tile');
+      floorLayer.appendChild(poly);
+    }
+    /* 회전한 방: 윗면과 맞는 회색 바닥 면을 한 장 덮어 시각적으로 바닥도 함께 도는 것처럼 */
+    for (var ri = 0; ri < rooms.length; ri++) {
+      var rm = rooms[ri];
+      var deg = rm.rotationDeg || 0;
+      if (Math.abs(deg) < 0.01) continue;
+      var base = getRoomRotatedCorners(rm).base;
+      var ov = document.createElementNS(SVG_NS, 'polygon');
+      ov.setAttribute('points', base.map(function(p) { return p.x + ',' + p.y; }).join(' '));
+      ov.setAttribute('fill', '#d2d9e1');
+      ov.setAttribute('stroke', 'none');
+      ov.setAttribute('pointer-events', 'none');
+      ov.setAttribute('class', 'floor-rot-underlay');
+      floorLayer.appendChild(ov);
+    }
+  }
+
+  function commitFloorDrag() {
+    if (!dragStart || !dragCurrent) return;
+    var c0 = Math.min(dragStart.col, dragCurrent.col);
+    var c1 = Math.max(dragStart.col, dragCurrent.col);
+    var r0 = Math.min(dragStart.row, dragCurrent.row);
+    var r1 = Math.max(dragStart.row, dragCurrent.row);
+    var cellCount = (c1 - c0 + 1) * (r1 - r0 + 1);
+    dragStart = null;
+    dragCurrent = null;
+    renderFloorPreview();
+    // 한 칸만 드래그하면 바닥·방 모두 생성하지 않음 (2칸 이상부터 바닥)
+    if (cellCount < 2) return;
+    var isSingleCell = (c0 === c1 && r0 === r1);
+    if (!isSingleCell && isValidRoomSize(c0, r0, c1, r1) && canPlaceRoom(c0, r0, c1, r1)) {
+      placeRoom(c0, r0, c1, r1);
+    } else {
+      addFloorRegion(c0, r0, c1, r1);
+    }
+  }
+
+  function renderFloorPreview() {
+    var preview = floorLayer.querySelector('g[data-preview="floor"]');
+    if (preview) preview.remove();
+    if (!dragStart || !dragCurrent) return;
+    var c0 = Math.min(dragStart.col, dragCurrent.col);
+    var c1 = Math.max(dragStart.col, dragCurrent.col);
+    var r0 = Math.min(dragStart.row, dragCurrent.row);
+    var r1 = Math.max(dragStart.row, dragCurrent.row);
+    var previewCells = (c1 - c0 + 1) * (r1 - r0 + 1);
+    // 바닥은 2칸 이상일 때만 생성 → 펜/지우개가 아닐 때 1칸 미리보기 생략
+    if (!eraserMode && previewCells < 2) {
+      if (!dragSizeHintEl) {
+        dragSizeHintEl = document.createElement('div');
+        dragSizeHintEl.style.position = 'fixed';
+        dragSizeHintEl.style.zIndex = '2000';
+        dragSizeHintEl.style.pointerEvents = 'none';
+        dragSizeHintEl.style.background = 'rgba(0,0,0,0.7)';
+        dragSizeHintEl.style.color = '#fff';
+        dragSizeHintEl.style.padding = '4px 8px';
+        dragSizeHintEl.style.borderRadius = '4px';
+        dragSizeHintEl.style.fontSize = '11px';
+        document.body.appendChild(dragSizeHintEl);
+      }
+      dragSizeHintEl.textContent = '2칸 이상 드래그';
+      dragSizeHintEl.style.display = '';
+      return;
+    }
+    var g = document.createElementNS(SVG_NS, 'g');
+    g.setAttribute('data-preview', 'floor');
+    var previewClass = 'floor-tile preview' + (eraserMode ? ' eraser' : '');
+    for (var r = r0; r <= r1; r++) {
+      for (var c = c0; c <= c1; c++) {
+        var poly = document.createElementNS(SVG_NS, 'polygon');
+        poly.setAttribute('points', getDiamondPoints(c, r));
+        poly.setAttribute('class', previewClass);
+        g.appendChild(poly);
+      }
+    }
+    floorLayer.appendChild(g);
+
+    // 드래그 중인 바닥 영역의 가로x세로 칸 수를 커서 근처에 표시
+    if (!dragSizeHintEl) {
+      dragSizeHintEl = document.createElement('div');
+      dragSizeHintEl.style.position = 'fixed';
+      dragSizeHintEl.style.zIndex = '2000';
+      dragSizeHintEl.style.pointerEvents = 'none';
+      dragSizeHintEl.style.background = 'rgba(0,0,0,0.7)';
+      dragSizeHintEl.style.color = '#fff';
+      dragSizeHintEl.style.padding = '4px 8px';
+      dragSizeHintEl.style.borderRadius = '4px';
+      dragSizeHintEl.style.fontSize = '11px';
+      document.body.appendChild(dragSizeHintEl);
+    }
+    var wCells = (c1 - c0 + 1);
+    var hCells = (r1 - r0 + 1);
+    dragSizeHintEl.textContent = wCells + ' x ' + hCells;
+  }
+
+  var penCursorPos = null; /* 펜 모드 커서 위치 (screen coords) */
+
+  function renderPenPreview() {
+    var prev = floorLayer.querySelector('g[data-preview="pen"]');
+    if (prev) prev.remove();
+    if (!penMode || penPoints.length === 0) return;
+    var g = document.createElementNS(SVG_NS, 'g');
+    g.setAttribute('data-preview', 'pen');
+    var pts = penPoints.map(function(p) {
+      return typeof p.vc !== 'undefined' ? vertexToScreen(p.vc, p.vr) : gridToScreen(p.col, p.row);
+    });
+
+    /* 채워진 바닥 미리보기 (3점 이상이면 반투명 영역 표시) */
+    if (pts.length >= 3) {
+      var fillPoly = document.createElementNS(SVG_NS, 'polygon');
+      fillPoly.setAttribute('points', pts.map(function(pt) { return pt.x + ',' + pt.y; }).join(' '));
+      fillPoly.setAttribute('fill', 'rgba(51,198,176,0.15)');
+      fillPoly.setAttribute('stroke', 'none');
+      fillPoly.setAttribute('pointer-events', 'none');
+      g.appendChild(fillPoly);
+    }
+
+    /* 연결선 */
+    var lineStr = pts.map(function(pt) { return pt.x + ',' + pt.y; });
+    /* 커서까지 라이브 라인 추가 */
+    if (penCursorPos && pts.length >= 1) {
+      lineStr.push(penCursorPos.x + ',' + penCursorPos.y);
+    }
+    if (lineStr.length >= 2) {
+      var line = document.createElementNS(SVG_NS, 'polyline');
+      line.setAttribute('points', lineStr.join(' '));
+      line.setAttribute('fill', 'none');
+      line.setAttribute('stroke', '#33C6B0');
+      line.setAttribute('stroke-width', '2');
+      line.setAttribute('pointer-events', 'none');
+      g.appendChild(line);
+    }
+
+    /* 포인트 dot */
+    for (var i = 0; i < pts.length; i++) {
+      var isFirst = (i === 0 && pts.length >= 3);
+      var dot = document.createElementNS(SVG_NS, 'circle');
+      dot.setAttribute('cx', pts[i].x);
+      dot.setAttribute('cy', pts[i].y);
+      dot.setAttribute('r', isFirst ? 7 : 4);
+      dot.setAttribute('fill', isFirst ? '#ff6b6b' : '#33C6B0');
+      dot.setAttribute('stroke', '#fff');
+      dot.setAttribute('stroke-width', isFirst ? 2 : 1);
+      dot.setAttribute('pointer-events', 'none');
+      g.appendChild(dot);
+    }
+
+    /* 닫기 가능 표시: 커서가 첫 점 근처이면 강조 */
+    if (penCursorPos && pts.length >= 3) {
+      var dx = penCursorPos.x - pts[0].x, dy = penCursorPos.y - pts[0].y;
+      if (Math.sqrt(dx * dx + dy * dy) < 15) {
+        var snapRing = document.createElementNS(SVG_NS, 'circle');
+        snapRing.setAttribute('cx', pts[0].x);
+        snapRing.setAttribute('cy', pts[0].y);
+        snapRing.setAttribute('r', 12);
+        snapRing.setAttribute('fill', 'rgba(255,107,107,0.2)');
+        snapRing.setAttribute('stroke', '#ff6b6b');
+        snapRing.setAttribute('stroke-width', '2');
+        snapRing.setAttribute('pointer-events', 'none');
+        g.appendChild(snapRing);
+      }
+    }
+
+    floorLayer.appendChild(g);
+  }
+
+  function scaleRoomFootprint(p0, p1, p2, p3, scale) {
+    var cx = (p0.x + p1.x + p2.x + p3.x) / 4;
+    var cy = (p0.y + p1.y + p2.y + p3.y) / 4;
+    function scalePt(p) {
+      return { x: cx + (p.x - cx) * scale, y: cy + (p.y - cy) * scale };
+    }
+    return [ scalePt(p0), scalePt(p1), scalePt(p2), scalePt(p3) ];
+  }
+
+  function scaleRoomFootprintN(pts, scale) {
+    if (!pts || pts.length === 0 || scale === 1) return pts;
+    var cx = 0, cy = 0, n = pts.length;
+    for (var i = 0; i < n; i++) {
+      cx += pts[i].x;
+      cy += pts[i].y;
+    }
+    cx /= n;
+    cy /= n;
+    var out = [];
+    for (var j = 0; j < n; j++) {
+      out.push({ x: cx + (pts[j].x - cx) * scale, y: cy + (pts[j].y - cy) * scale });
+    }
+    return out;
+  }
+
+  /** 각 변을 바깥으로 offsetPx만큼 밀어낸 뒤 새 꼭짓점을 구한다. offsetTop/Right/Bottom/Left가 0이면 해당 변은 밀지 않는다. */
+  function offsetRoomEdgesOptional(p0, p1, p2, p3, offsetTop, offsetRight, offsetBottom, offsetLeft) {
+    if (offsetTop <= 0 && offsetRight <= 0 && offsetBottom <= 0 && offsetLeft <= 0) {
+      return [ p0, p1, p2, p3 ];
+    }
+    function norm(out, ax, ay, bx, by, offsetPx) {
+      if (offsetPx <= 0) { out.x = 0; out.y = 0; return; }
+      var dx = bx - ax, dy = by - ay;
+      var len = Math.sqrt(dx * dx + dy * dy);
+      if (len < 1e-6) { out.x = 0; out.y = 0; return; }
+      var n = offsetPx / len;
+      out.x = -dy * n;
+      out.y = dx * n;
+    }
+    function lineIntersect(a1, d1, a2, d2) {
+      var cross = d1.x * d2.y - d1.y * d2.x;
+      if (Math.abs(cross) < 1e-10) return { x: a1.x, y: a1.y };
+      var t = ((a2.x - a1.x) * d2.y - (a2.y - a1.y) * d2.x) / cross;
+      return { x: a1.x + t * d1.x, y: a1.y + t * d1.y };
+    }
+    var n01 = {}, n12 = {}, n23 = {}, n30 = {};
+    norm(n01, p0.x, p0.y, p1.x, p1.y, offsetTop);
+    norm(n12, p1.x, p1.y, p2.x, p2.y, offsetRight);
+    norm(n23, p2.x, p2.y, p3.x, p3.y, offsetBottom);
+    norm(n30, p3.x, p3.y, p0.x, p0.y, offsetLeft);
+    var d01 = { x: p1.x - p0.x, y: p1.y - p0.y };
+    var d12 = { x: p2.x - p1.x, y: p2.y - p1.y };
+    var d23 = { x: p3.x - p2.x, y: p3.y - p2.y };
+    var d30 = { x: p0.x - p3.x, y: p0.y - p3.y };
+    var newP0 = lineIntersect({ x: p0.x + n30.x, y: p0.y + n30.y }, d30, { x: p0.x + n01.x, y: p0.y + n01.y }, d01);
+    var newP1 = lineIntersect({ x: p1.x + n01.x, y: p1.y + n01.y }, d01, { x: p1.x + n12.x, y: p1.y + n12.y }, d12);
+    var newP2 = lineIntersect({ x: p2.x + n12.x, y: p2.y + n12.y }, d12, { x: p2.x + n23.x, y: p2.y + n23.y }, d23);
+    var newP3 = lineIntersect({ x: p3.x + n23.x, y: p3.y + n23.y }, d23, { x: p3.x + n30.x, y: p3.y + n30.y }, d30);
+    return [ newP0, newP1, newP2, newP3 ];
+  }
+
+  /** 각 변을 바깥으로 offsetPx만큼 밀어낸 뒤 새 꼭짓점을 구한다. 리사이즈 시 반대쪽 변이 고정된다. */
+  function offsetRoomEdges(p0, p1, p2, p3, offsetPx) {
+    if (offsetPx <= 0) return [ p0, p1, p2, p3 ];
+    return offsetRoomEdgesOptional(p0, p1, p2, p3, offsetPx, offsetPx, offsetPx, offsetPx);
+  }
+
+  /** 방 (c0,r0,c1,r1)의 해당 변에 인접한 다른 방이 있는지. excludeId는 제외. */
+  function hasRoomAdjacentToEdge(c0, r0, c1, r1, excludeId, edge) {
+    var nc0, nr0, nc1, nr1;
+    if (edge === 'top') { nc0 = c0; nr0 = r0 - 1; nc1 = c1; nr1 = r0 - 1; }
+    else if (edge === 'bottom') { nc0 = c0; nr0 = r1 + 1; nc1 = c1; nr1 = r1 + 1; }
+    else if (edge === 'left') { nc0 = c0 - 1; nr0 = r0; nc1 = c0 - 1; nr1 = r1; }
+    else { nc0 = c1 + 1; nr0 = r0; nc1 = c1 + 1; nr1 = r1; }
+    if (nc0 < -GRID_LIMIT || nc1 > GRID_LIMIT || nr0 < -GRID_LIMIT || nr1 > GRID_LIMIT) return false;
+    for (var i = 0; i < rooms.length; i++) {
+      var r = rooms[i];
+      if (r.id === excludeId) continue;
+      if (r.c0 <= nc1 && r.c1 >= nc0 && r.r0 <= nr1 && r.r1 >= nr0) return true;
+    }
+    return false;
+  }
+
+  /** 옆면 사각형의 기하학적 중심 (네 꼭짓점 평균 = 평행사변형 중심) */
+  function getSideFaceCenter(pta) {
+    var sx = 0, sy = 0;
+    for (var fi = 0; fi < 4; fi++) {
+      sx += pta[fi].x;
+      sy += pta[fi].y;
+    }
+    return { x: sx / 4, y: sy / 4 };
+  }
+
+  /**
+   * 옆면(사각형)의 화면상 단위 법선(건물 바깥을 향하도록 부호 고정).
+   * top[i]→top[i+1] 가장자리에 수직.
+   */
+  function getRoomSideFaceOutwardNormal(topP, base, i, roomTopCx, roomTopCy) {
+    var n = topP.length;
+    var ni = (i + 1) % n;
+    var e = { x: topP[ni].x - topP[i].x, y: topP[ni].y - topP[i].y };
+    var elen = Math.sqrt(e.x * e.x + e.y * e.y);
+    if (elen < 1e-9) return { x: 1, y: 0 };
+    var nx = -e.y / elen;
+    var ny = e.x / elen;
+    var midx = (topP[i].x + topP[ni].x + base[i].x + base[ni].x) / 4;
+    var midy = (topP[i].y + topP[ni].y + base[i].y + base[ni].y) / 4;
+    if (nx * (midx - roomTopCx) + ny * (midy - roomTopCy) < 0) {
+      nx = -nx;
+      ny = -ny;
+    }
+    return { x: nx, y: ny };
+  }
+
+  /**
+   * 앞면 코드(S1 등): 등각에서 **눈앞·오른쪽(또는 왼쪽)으로 보이는 세로 벽** 한 면의 중앙.
+   * norm.x만 쓰면 윗면에 붙은 가느다란 옆면(거의 수평)이 선택돼 글자가 윗면 근처로 뜸.
+   * → 세로로 충분한 면만 보고, 같은 방향이면 **화면 Y가 큰 면(시청자 쪽·앞)** 을 우선한다.
+   */
+  function pickRoomCodeSideFacePts(topP, base, faceSide) {
+    var n = topP.length;
+    if (n < 2) return [topP[0], topP[0], base[0], base[0]];
+    var tcx = 0, tcy = 0;
+    for (var k = 0; k < n; k++) {
+      tcx += topP[k].x;
+      tcy += topP[k].y;
+    }
+    tcx /= n;
+    tcy /= n;
+    var MIN_FACE_DY = 4;
+    var DIR_EPS = 0.12;
+    var bestI = -1;
+    var bestScore = -1e9;
+    for (var i = 0; i < n; i++) {
+      var ni = (i + 1) % n;
+      var norm = getRoomSideFaceOutwardNormal(topP, base, i, tcx, tcy);
+      var topMidY = (topP[i].y + topP[ni].y) / 2;
+      var baseMidY = (base[i].y + base[ni].y) / 2;
+      var dy = Math.abs(baseMidY - topMidY);
+      if (dy < MIN_FACE_DY) continue;
+      if (faceSide === 'right' && norm.x < DIR_EPS) continue;
+      if (faceSide === 'left' && norm.x > -DIR_EPS) continue;
+      var midx = (topP[i].x + topP[ni].x + base[i].x + base[ni].x) / 4;
+      var midy = (topP[i].y + topP[ni].y + base[i].y + base[ni].y) / 4;
+      var dirScore = faceSide === 'left' ? -norm.x : norm.x;
+      var score = midy * 2 + dirScore * 18;
+      if (score > bestScore) {
+        bestScore = score;
+        bestI = i;
+      }
+    }
+    if (bestI < 0) {
+      for (var j = 0; j < n; j++) {
+        var norm2 = getRoomSideFaceOutwardNormal(topP, base, j, tcx, tcy);
+        var sc = faceSide === 'left' ? -norm2.x : norm2.x;
+        if (sc > bestScore) {
+          bestScore = sc;
+          bestI = j;
+        }
+      }
+    }
+    if (bestI < 0) bestI = 0;
+    var niF = (bestI + 1) % n;
+    return [topP[bestI], topP[niF], base[niF], base[bestI]];
+  }
+
+  /**
+   * 공선점 제거: basePts 기준으로 collinear 꼭짓점을 걸러내고,
+   * 동일 인덱스를 topPts에도 적용한다. 방 코드 텍스트 위치 계산에만 사용.
+   */
+  function getSimplifiedParallelPolygons(topArr, baseArr) {
+    var n = topArr.length;
+    if (n < 4) return { top: topArr, base: baseArr };
+    var keepIdx = [];
+    for (var i = 0; i < n; i++) {
+      var prev = baseArr[(i + n - 1) % n];
+      var curr = baseArr[i];
+      var next = baseArr[(i + 1) % n];
+      var ex1 = curr.x - prev.x, ey1 = curr.y - prev.y;
+      var ex2 = next.x - curr.x, ey2 = next.y - curr.y;
+      if (Math.abs(ex1 * ey2 - ey1 * ex2) > 0.5) keepIdx.push(i);
+    }
+    if (keepIdx.length < 3) return { top: topArr, base: baseArr };
+    return {
+      top:  keepIdx.map(function(i) { return topArr[i]; }),
+      base: keepIdx.map(function(i) { return baseArr[i]; })
+    };
+  }
+
+  function drawRoomBox(room, isPreview, isSelected) {
+    var c0 = room.c0, r0 = room.r0, c1 = room.c1, r1 = room.r1;
+    var id = room.id, label = room.label, code = room.code;
+    var roomType = room.type || 'room', faceSide = room.faceSide || 'right';
+    var isCounter = (roomType === 'counter');
+    var isFacility = (roomType === 'facility');
+    var isDoor = (roomType === 'door');
+    var corners = getRoomRotatedCorners(room);
+    var base = corners.base;
+    var topP = corners.top;
+    var n = base.length;
+    function pts(arr) {
+      return arr.map(function(p) { return p.x + ',' + p.y; }).join(' ');
+    }
+    var avgY = [];
+    for (var ai = 0; ai < n; ai++) {
+      var ni = (ai + 1) % n;
+      avgY.push((topP[ai].y + topP[ni].y) / 2);
+    }
+    var roomCenterX = 0, roomCenterYTop = 0;
+    for (var ci = 0; ci < n; ci++) {
+      roomCenterX += topP[ci].x;
+      roomCenterYTop += topP[ci].y;
+    }
+    roomCenterX /= n;
+    roomCenterYTop /= n;
+    /* 모든 면의 기본색: CSS .room-top / .room-type-counter 와 동일 (경계선 없이 한 덩이로 보이게) */
+    var baseColor = (isCounter || isFacility || isDoor) ? '#bcc6cd' : '#3fc3b0';
+    /* 광원: 왼쪽에서 비춤 = 빛 방향 화면 +X / 오른쪽에서 = -X */
+    var lightDirX = sideShadeLightFrom === 'left' ? 1 : -1;
+    /* 옆면: 꼭짓점 순서 top(i)->top(i+1)->base(i+1)->base(i) */
+    var sideFaces = [];
+    for (var i = 0; i < n; i++) {
+      var ni2 = (i + 1) % n;
+      var facePts = [topP[i], topP[ni2], base[ni2], base[i]];
+      var norm = getRoomSideFaceOutwardNormal(topP, base, i, roomCenterX, roomCenterYTop);
+      var ndotl = norm.x * lightDirX;
+      sideFaces.push({
+        pts: facePts,
+        avgY: avgY[i],
+        ndotl: ndotl
+      });
+    }
+    /* 깊이 순 정렬: 먼 면(작은 Y)부터, 가까운 면(큰 Y) 나중에 그려 겹침 오류 방지 */
+    sideFaces.sort(function(a, b) { return a.avgY - b.avgY; });
+    /* 공선점 제거 후 면 선택 → 텍스트가 실제 벽 면의 중앙에 오도록 */
+    var codeSimp = getSimplifiedParallelPolygons(topP, base);
+    var ptaCode = pickRoomCodeSideFacePts(codeSimp.top, codeSimp.base, faceSide);
+    var codeCenter = getSideFaceCenter(ptaCode);
+    var codeX = codeCenter.x;
+    var codeY = codeCenter.y;
+
+    var topCenterX = roomCenterX;
+    var topCenterY = roomCenterYTop;
+
+    var g = document.createElementNS(SVG_NS, 'g');
+    g.setAttribute('class', 'room-group');
+    g.setAttribute('data-room-id', String(id));
+    g.setAttribute('data-room-number', String(label || (id + '번')));
+    var roomTitle = (label || (id + '번')) + ' 방';
+    var titleEl = document.createElementNS(SVG_NS, 'title');
+    titleEl.textContent = roomTitle;
+    g.appendChild(titleEl);
+
+    var topClass = 'room-top';
+    if (isCounter || isFacility || isDoor) topClass += ' room-type-counter';
+    /* 옆면: 모두 같은 베이스 컬러로 그린 뒤 rgba(0,0,0,opacity) 음영 오버레이 추가
+       → SVG에서 한 덩어리처럼 보이고, 색 경계선이 생기지 않음 */
+    for (var si = 0; si < sideFaces.length; si++) {
+      var polySide = document.createElementNS(SVG_NS, 'polygon');
+      polySide.setAttribute('points', pts(sideFaces[si].pts));
+      polySide.setAttribute('fill', baseColor);
+      polySide.setAttribute('stroke', 'none');
+      g.appendChild(polySide);
+      /* 음영 오버레이: 밝은 면 10%, 어두운 면 32% */
+      var shade = sideFaces[si].ndotl >= 0 ? 0.10 : 0.32;
+      var polyShade = document.createElementNS(SVG_NS, 'polygon');
+      polyShade.setAttribute('points', pts(sideFaces[si].pts));
+      polyShade.setAttribute('fill', 'rgba(0,0,0,' + shade + ')');
+      polyShade.setAttribute('stroke', 'none');
+      polyShade.setAttribute('pointer-events', 'none');
+      g.appendChild(polyShade);
+    }
+    var pathBody = document.createElementNS(SVG_NS, 'path');
+    var pathD = 'M ' + topP[0].x + ' ' + topP[0].y;
+    for (var pi = 1; pi < n; pi++) {
+      pathD += ' L ' + topP[pi].x + ' ' + topP[pi].y;
+    }
+    pathD += ' Z ';
+    pathBody.setAttribute('d', pathD);
+    pathBody.setAttribute('class', topClass);
+    g.appendChild(pathBody);
+
+    var labelTop = document.createElementNS(SVG_NS, 'text');
+    labelTop.setAttribute('class', 'room-label-top');
+    labelTop.setAttribute('style', 'font-size:' + roomLabelFontSizeTop + 'px');
+    labelTop.setAttribute('x', topCenterX);
+    labelTop.setAttribute('y', topCenterY);
+    labelTop.textContent = label || (id + '번');
+    g.appendChild(labelTop);
+
+    if (!isCounter && !isFacility && !isDoor && code != null && String(code).trim() !== '') {
+      var labelFace = document.createElementNS(SVG_NS, 'text');
+      labelFace.setAttribute('class', 'room-label-face');
+      labelFace.setAttribute('style', 'font-size:' + roomLabelFontSizeFace + 'px');
+      labelFace.setAttribute('x', codeX);
+      labelFace.setAttribute('y', codeY);
+      labelFace.setAttribute('text-anchor', 'middle');
+      labelFace.setAttribute('dominant-baseline', 'central');
+      labelFace.setAttribute('alignment-baseline', 'central');
+      labelFace.textContent = code.trim();
+      g.appendChild(labelFace);
+    }
+
+    if (isSelected) {
+      /* 선택 윤곽: top face 폴리곤 기준 (bounding box 대신 실제 방 윗면) */
+      var selPoly = document.createElementNS(SVG_NS, 'polygon');
+      selPoly.setAttribute('points', topP.map(function(p) { return p.x + ',' + p.y; }).join(' '));
+      selPoly.setAttribute('fill', 'none');
+      selPoly.setAttribute('stroke', '#2563eb');
+      selPoly.setAttribute('stroke-dasharray', '4 3');
+      selPoly.setAttribute('stroke-width', '1.5');
+      selPoly.setAttribute('pointer-events', 'none');
+      g.appendChild(selPoly);
+    }
+
+    if (isPreview) g.setAttribute('opacity', '0.85');
+    return g;
+  }
+
+  /* AI(Illustrator) 호환 내보내기용 방 렌더링
+     - 화면 렌더링과 동일한 면별 polygon 구조 유지 (색 오류 방지)
+     - 음영 오버레이는 fill-opacity 사용 (rgba 대신, Illustrator 호환)
+     - CSS 클래스 없이 모든 스타일 인라인 */
+  /* export 전용: 항상 4코너 다이아몬드 (셀 경계 추적 안 함 → AI에서 깔끔) */
+  function getRoomExportCorners(room) {
+    var c0 = room.c0, r0 = room.r0, c1 = room.c1, r1 = room.r1;
+    var deg = room.rotationDeg || 0;
+    var basePts = getAxisAlignedRoomFootprintBase(c0, r0, c1, r1)
+      .map(function(p) { return { x: p.x, y: p.y }; });
+    var n = basePts.length;
+    if (deg !== 0) {
+      var rcx = 0, rcy = 0;
+      for (var i = 0; i < n; i++) { rcx += basePts[i].x; rcy += basePts[i].y; }
+      rcx /= n; rcy /= n;
+      for (var j = 0; j < n; j++) {
+        var rp = rotatePointOnIsoPlane(rcx, rcy, basePts[j].x, basePts[j].y, deg);
+        basePts[j].x = rp.x; basePts[j].y = rp.y;
+      }
+    }
+    /* export에서는 ROOM_FOOTPRINT_SCALE, ROOM_EDGE_OFFSET_PX 미적용
+       → 방 풋프린트가 바닥 셀과 정확히 일치, 회전 시에도 바닥 밖 이탈 없음 */
+    /* export 회전: 바닥면(ground plane)만 회전 → 높이 돌출은 회전 후 적용 */
+    if (_expRot) {
+      for (var ei = 0; ei < n; ei++) {
+        var erp = rotatePointOnIsoPlane(_expRot.cx, _expRot.cy, basePts[ei].x, basePts[ei].y, _expRot.deg);
+        basePts[ei].x = erp.x; basePts[ei].y = erp.y;
+      }
+    }
+    var H;
+    if (room.type === 'facility' || room.type === 'door') H = 0;
+    else if (room.type === 'counter') H = ROOM_HEIGHT / 2;
+    else H = ROOM_HEIGHT;
+    var topPts = [];
+    for (var t = 0; t < n; t++) topPts.push({ x: basePts[t].x, y: basePts[t].y - H });
+    return { base: basePts, top: topPts };
+  }
+
+  function drawRoomBoxForExport(room) {
+    var corners = getRoomExportCorners(room);
+    var base = corners.base, topP = corners.top, n = base.length;
+    function pstr(arr) { return arr.map(function(p) { return p.x.toFixed(2) + ',' + p.y.toFixed(2); }).join(' '); }
+    var roomType = room.type || 'room';
+    var isCounter = (roomType === 'counter'), isFacility = (roomType === 'facility'), isDoor = (roomType === 'door');
+    var baseColor = (isCounter || isFacility || isDoor) ? '#bcc6cd' : '#3fc3b0';
+    var lightDirX = sideShadeLightFrom === 'left' ? 1 : -1;
+    var rcx = 0, rcy = 0;
+    for (var ci = 0; ci < n; ci++) { rcx += topP[ci].x; rcy += topP[ci].y; }
+    rcx /= n; rcy /= n;
+
+    /* convex hull — 6각형 실루엣 (AI에서 하나의 개체) */
+    function cHull(pts) {
+      if (pts.length <= 2) return pts.slice();
+      var si2 = 0;
+      for (var i = 1; i < pts.length; i++) {
+        if (pts[i].x < pts[si2].x || (pts[i].x === pts[si2].x && pts[i].y < pts[si2].y)) si2 = i;
+      }
+      var hull = [], cur = si2;
+      do {
+        hull.push(pts[cur]);
+        var nx = 0;
+        for (var i = 1; i < pts.length; i++) {
+          if (i === cur) continue;
+          if (nx === cur) { nx = i; continue; }
+          var cross = (pts[i].x - pts[cur].x) * (pts[nx].y - pts[cur].y) -
+                      (pts[i].y - pts[cur].y) * (pts[nx].x - pts[cur].x);
+          if (cross < 0) nx = i;
+          else if (cross === 0) {
+            var di = (pts[i].x-pts[cur].x)*(pts[i].x-pts[cur].x)+(pts[i].y-pts[cur].y)*(pts[i].y-pts[cur].y);
+            var dn = (pts[nx].x-pts[cur].x)*(pts[nx].x-pts[cur].x)+(pts[nx].y-pts[cur].y)*(pts[nx].y-pts[cur].y);
+            if (di > dn) nx = i;
+          }
+        }
+        cur = nx;
+      } while (cur !== si2 && hull.length < pts.length + 1);
+      return hull;
+    }
+    var hull = cHull(topP.concat(base));
+
+    /* 측면 정보 (두 가지 톤 음영용) */
+    var sideFaces = [];
+    for (var i = 0; i < n; i++) {
+      var ni2 = (i + 1) % n;
+      var facePts = [topP[i], topP[ni2], base[ni2], base[i]];
+      var norm = getRoomSideFaceOutwardNormal(topP, base, i, rcx, rcy);
+      sideFaces.push({ pts: facePts, avgY: (topP[i].y + topP[ni2].y) / 2, ndotl: norm.x * lightDirX });
+    }
+    sideFaces.sort(function(a, b) { return a.avgY - b.avgY; });
+
+    var g = document.createElementNS(SVG_NS, 'g');
+    g.setAttribute('class', 'room-group');
+    g.setAttribute('data-room-id', String(room.id));
+
+    /* 1: 6각형 hull — 바탕색, 하나의 polygon */
+    var hullPoly = document.createElementNS(SVG_NS, 'polygon');
+    hullPoly.setAttribute('points', pstr(hull));
+    hullPoly.setAttribute('fill', baseColor);
+    hullPoly.setAttribute('stroke', 'none');
+    g.appendChild(hullPoly);
+
+    /* 2: 보이는 측면에 검정 투명도 음영 */
+    var visStart = Math.ceil(n / 2);
+    for (var si = visStart; si < sideFaces.length; si++) {
+      var shade = sideFaces[si].ndotl >= 0 ? 0.10 : 0.32;
+      var shadePoly = document.createElementNS(SVG_NS, 'polygon');
+      shadePoly.setAttribute('points', pstr(sideFaces[si].pts));
+      shadePoly.setAttribute('fill', '#000000');
+      shadePoly.setAttribute('fill-opacity', String(shade));
+      shadePoly.setAttribute('stroke', 'none');
+      g.appendChild(shadePoly);
+    }
+
+    /* 3: 윗면 — 바탕색으로 음영 위를 덮음 */
+    var topPoly = document.createElementNS(SVG_NS, 'polygon');
+    topPoly.setAttribute('points', pstr(topP));
+    topPoly.setAttribute('fill', baseColor);
+    topPoly.setAttribute('stroke', 'none');
+    g.appendChild(topPoly);
+
+    /* 윗면 라벨 — text-anchor:start → AI에서 시작점(앵커)이 윗면 중심에 위치 */
+    var lt = document.createElementNS(SVG_NS, 'text');
+    lt.setAttribute('x', String(rcx));
+    lt.setAttribute('y', String(rcy));
+    lt.setAttribute('text-anchor', 'start');
+    lt.setAttribute('dominant-baseline', 'central');
+    lt.setAttribute('style', 'font-size:' + roomLabelFontSizeTop + 'px;font-weight:700');
+    lt.setAttribute('fill', '#1a1a1a');
+    lt.textContent = room.label || (room.id + '번');
+    g.appendChild(lt);
+
+    /* 벽면 코드 라벨 — codeFace 오버라이드 지원 (auto/left/right) */
+    if (!isCounter && !isFacility && !isDoor && room.code != null && String(room.code).trim() !== '') {
+      var codeFaceMode = (_expCodeFaces && _expCodeFaces[room.id]) || 'auto';
+      var codeFacePts = null;
+      if (codeFaceMode === 'auto') {
+        /* 넓은 면 자동 선택 */
+        var bestArea2 = -1;
+        for (var wi = visStart; wi < sideFaces.length; wi++) {
+          var fp2 = sideFaces[wi].pts;
+          var a2 = 0;
+          for (var ai = 0; ai < fp2.length; ai++) {
+            var aj = (ai + 1) % fp2.length;
+            a2 += fp2[ai].x * fp2[aj].y - fp2[aj].x * fp2[ai].y;
+          }
+          if (Math.abs(a2) > bestArea2) { bestArea2 = Math.abs(a2); codeFacePts = fp2; }
+        }
+      } else {
+        /* left=ndotl<0쪽, right=ndotl>=0쪽 */
+        for (var wi = visStart; wi < sideFaces.length; wi++) {
+          if (codeFaceMode === 'left' && sideFaces[wi].ndotl < 0) { codeFacePts = sideFaces[wi].pts; break; }
+          if (codeFaceMode === 'right' && sideFaces[wi].ndotl >= 0) { codeFacePts = sideFaces[wi].pts; break; }
+        }
+        if (!codeFacePts && sideFaces.length > visStart) codeFacePts = sideFaces[visStart].pts;
+      }
+      if (codeFacePts) {
+        var cfx = 0, cfy = 0;
+        for (var fi = 0; fi < codeFacePts.length; fi++) { cfx += codeFacePts[fi].x; cfy += codeFacePts[fi].y; }
+        cfx /= codeFacePts.length; cfy /= codeFacePts.length;
+        var lf = document.createElementNS(SVG_NS, 'text');
+        lf.setAttribute('x', String(cfx));
+        lf.setAttribute('y', String(cfy));
+        lf.setAttribute('text-anchor', 'middle');
+        lf.setAttribute('dominant-baseline', 'central');
+        lf.setAttribute('style', 'font-size:' + roomLabelFontSizeFace + 'px;font-weight:700;text-anchor:middle');
+        lf.setAttribute('fill', '#ffffff');
+        lf.textContent = String(room.code).trim();
+        g.appendChild(lf);
+      }
+    }
+    return g;
+  }
+
+  function getRoomScreenY(room) {
+    // 이소메트릭 painter's algorithm: 시청자에게 가장 가까운 꼭짓점(c1, r1) 기준 정렬
+    var p = gridToScreen(room.c1, room.r1);
+    return p.y;
+  }
+
+  function ensureLinkArrowMarkers() {
+    if (svg.querySelector('#linkArrowMarkers')) return;
+    var defs = document.createElementNS(SVG_NS, 'defs');
+    defs.setAttribute('id', 'linkArrowMarkers');
+    var mk = document.createElementNS(SVG_NS, 'marker');
+    mk.setAttribute('id', 'linkArrowEnd');
+    mk.setAttribute('markerUnits', 'userSpaceOnUse');
+    mk.setAttribute('markerWidth', '8');
+    mk.setAttribute('markerHeight', '8');
+    mk.setAttribute('refX', '7');
+    mk.setAttribute('refY', '4');
+    mk.setAttribute('orient', 'auto');
+    var tri = document.createElementNS(SVG_NS, 'path');
+    tri.setAttribute('d', 'M0,0 L0,8 L8,4 z');
+    tri.setAttribute('fill', '#ef4444');
+    mk.appendChild(tri);
+    defs.appendChild(mk);
+    var mk2 = document.createElementNS(SVG_NS, 'marker');
+    mk2.setAttribute('id', 'linkArrowStart');
+    mk2.setAttribute('markerUnits', 'userSpaceOnUse');
+    mk2.setAttribute('markerWidth', '8');
+    mk2.setAttribute('markerHeight', '8');
+    mk2.setAttribute('refX', '7');
+    mk2.setAttribute('refY', '4');
+    mk2.setAttribute('orient', 'auto-start-reverse');
+    var tri2 = document.createElementNS(SVG_NS, 'path');
+    tri2.setAttribute('d', 'M0,0 L0,8 L8,4 z');
+    tri2.setAttribute('fill', '#ef4444');
+    mk2.appendChild(tri2);
+    defs.appendChild(mk2);
+    svg.insertBefore(defs, svg.firstChild);
+  }
+
+  function pruneRoomLinksForDeletedRoom(deletedId) {
+    var out = [];
+    for (var i = 0; i < roomLinks.length; i++) {
+      var L = roomLinks[i];
+      if (L.a !== deletedId && L.b !== deletedId) out.push(L);
+    }
+    roomLinks = out;
+  }
+
+  function buildLinkConnectorPolygonPoints(pa, pb) {
+    var dx = pb.x - pa.x, dy = pb.y - pa.y;
+    var len = Math.sqrt(dx * dx + dy * dy);
+    if (len < 1e-6) return null;
+    var ux = dx / len, uy = dy / len;
+    var nx = -uy, ny = ux;
+    var mx = (pa.x + pb.x) / 2, my = (pa.y + pb.y) / 2;
+    // 자체 생성 이중 화살표: 회전/축소 시에도 자기교차 없이 안정적
+    var L = Math.min(34, Math.max(20, len * 0.28)); // 중심에서 끝팁까지 반길이
+    var h = Math.min(10, Math.max(7, L * 0.32));    // 화살촉 길이
+    var hw = Math.min(7.2, Math.max(4.2, L * 0.26)); // 화살촉 반폭 (방향 무관 고정)
+    var w = Math.max(1.6, hw * 0.32);                // 몸통 반폭
+    function p(along, normal) {
+      return (mx + ux * along + nx * normal) + ',' + (my + uy * along + ny * normal);
+    }
+    var out = [
+      p(-L, 0),        // left tip
+      p(-L + h, hw),
+      p(-L + h, w),
+      p(L - h, w),
+      p(L - h, hw),
+      p(L, 0),         // right tip
+      p(L - h, -hw),
+      p(L - h, -w),
+      p(-L + h, -w),
+      p(-L + h, -hw)
+    ];
+    return out.join(' ');
+  }
+
+  function getRoomTopAxisDirs(room) {
+    var top = getRoomRotatedCorners(room).top;
+    var cands = [
+      { x: top[1].x - top[0].x, y: top[1].y - top[0].y },
+      { x: top[2].x - top[1].x, y: top[2].y - top[1].y }
+    ];
+    var dirs = [];
+    for (var i = 0; i < cands.length; i++) {
+      var d = cands[i];
+      var ln = Math.sqrt(d.x * d.x + d.y * d.y);
+      if (ln < 1e-6) continue;
+      dirs.push({ x: d.x / ln, y: d.y / ln });
+      dirs.push({ x: -d.x / ln, y: -d.y / ln });
+    }
+    return dirs;
+  }
+
+  function getRoomTopFaceCenter(room) {
+    var top = getRoomRotatedCorners(room).top;
+    var sx = 0, sy = 0, n = top.length;
+    for (var i = 0; i < n; i++) {
+      sx += top[i].x;
+      sy += top[i].y;
+    }
+    return { x: sx / n, y: sy / n };
+  }
+
+  function renderRoomLinks() {
+    linkLayer.innerHTML = '';
+    for (var li = 0; li < roomLinks.length; li++) {
+      var lk = roomLinks[li];
+      var ra = getRoomById(lk.a);
+      var rb = getRoomById(lk.b);
+      if (!ra || !rb) continue;
+      var pa = getRoomTopFaceCenter(ra);
+      var pb = getRoomTopFaceCenter(rb);
+
+      var arrowPts = buildLinkConnectorPolygonPoints(pa, pb);
+      if (!arrowPts) continue;
+
+      var la = (ra.label || (ra.id + '번')).toString().trim();
+      var lb = (rb.label || (rb.id + '번')).toString().trim();
+
+      var arrow = document.createElementNS(SVG_NS, 'polygon');
+      arrow.setAttribute('points', arrowPts);
+      arrow.setAttribute('fill', '#ef4444');
+      arrow.setAttribute('stroke', 'none');
+      arrow.setAttribute('pointer-events', 'all');
+      arrow.style.cursor = 'pointer';
+      arrow.setAttribute('data-link-id', String(lk.id));
+      var titleEl = document.createElementNS(SVG_NS, 'title');
+      titleEl.textContent = la + ' ↔ ' + lb;
+      arrow.appendChild(titleEl);
+      linkLayer.appendChild(arrow);
+    }
+  }
+
+  function renderRooms() {
+    roomLayer.innerHTML = '';
+    var toDraw = rooms.filter(function(r) { return movingRoomId !== r.id; });
+    toDraw.sort(function(a, b) {
+      var za = (a.zOrder || 0) * 9999, zb = (b.zOrder || 0) * 9999;
+      return (getRoomScreenY(a) + za) - (getRoomScreenY(b) + zb);
+    });
+    for (var i = 0; i < toDraw.length; i++) {
+      var room = toDraw[i];
+      var el = drawRoomBox(room, false, room.id === selectedRoomId);
+      roomLayer.appendChild(el);
+    }
+    if (movingRoomId && movingRoomPreview) {
+      var room = getRoomById(movingRoomId);
+      if (room) {
+        var ghost = drawRoomBox({ c0: movingRoomPreview.c0, r0: movingRoomPreview.r0, c1: movingRoomPreview.c1, r1: movingRoomPreview.r1, id: room.id, label: room.label, code: room.code, type: room.type, faceSide: room.faceSide, rotationDeg: room.rotationDeg }, true, false);
+        ghost.setAttribute('opacity', '0.85');
+        roomLayer.appendChild(ghost);
+      }
+    }
+    renderRoomLinks();
+  }
+
+  /** 사용자가 드래그로 바닥을 그릴 때: 드래그한 영역만 그대로 추가 (merge 안 함). */
+  function addFloorRegion(c0, r0, c1, r1) {
+    pushHistory();
+    floorIdCounter++;
+    floorRegions.push({
+      id: floorIdCounter,
+      c0: c0, r0: r0, c1: c1, r1: r1
+    });
+    renderFloors();
+    buildGrid();
+  }
+
+  /** 새 직사각형 (c0,r0,c1,r1)을 바닥에 추가한다. 겹치거나 맞닿은 기존 영역은 하나로 합친다. */
+  function mergeFloorRegion(c0, r0, c1, r1) {
+    var minC0 = c0, minR0 = r0, maxC1 = c1, maxR1 = r1;
+    var toRemove = [];
+    for (var i = 0; i < floorRegions.length; i++) {
+      var fr = floorRegions[i];
+      var overlaps = fr.c0 <= c1 && fr.c1 >= c0 && fr.r0 <= r1 && fr.r1 >= r0;
+      if (overlaps) {
+        if (fr.c0 < minC0) minC0 = fr.c0;
+        if (fr.r0 < minR0) minR0 = fr.r0;
+        if (fr.c1 > maxC1) maxC1 = fr.c1;
+        if (fr.r1 > maxR1) maxR1 = fr.r1;
+        toRemove.push(i);
+      }
+    }
+    for (var j = toRemove.length - 1; j >= 0; j--) floorRegions.splice(toRemove[j], 1);
+    floorIdCounter++;
+    floorRegions.push({ id: floorIdCounter, c0: minC0, r0: minR0, c1: maxC1, r1: maxR1 });
+  }
+
+  /** 방을 놓을 때 그 칸을 바닥으로 추가한다. 기존 바닥 영역과 합치지 않고 새 영역만 추가 (첫 번째 방/바닥이 커지는 현상 방지). 이미 같은 영역이 있으면 추가하지 않음. */
+  function addFloorRegionForRoom(c0, r0, c1, r1) {
+    for (var i = 0; i < floorRegions.length; i++) {
+      var fr = floorRegions[i];
+      if (fr.c0 === c0 && fr.r0 === r0 && fr.c1 === c1 && fr.r1 === r1) return fr.id;
+    }
+    floorIdCounter++;
+    var fid = floorIdCounter;
+    floorRegions.push({ id: fid, c0: c0, r0: r0, c1: c1, r1: r1 });
+    renderFloors();
+    buildGrid();
+    return fid;
+  }
+
+  /** 방이 차지하는 직사각형 바닥 영역(floorRegionId)을 격자와 맞춘다. */
+  function syncRoomFloorRegion(room) {
+    if (!room) return;
+    if (!room.floorRegionId) {
+      for (var j = 0; j < floorRegions.length; j++) {
+        var fr0 = floorRegions[j];
+        if (fr0.type === 'polygon') continue;
+        if (fr0.c0 === room.c0 && fr0.r0 === room.r0 && fr0.c1 === room.c1 && fr0.r1 === room.r1) {
+          room.floorRegionId = fr0.id;
+          break;
+        }
+      }
+    }
+    if (!room.floorRegionId) return;
+    for (var i = 0; i < floorRegions.length; i++) {
+      var fr = floorRegions[i];
+      if (fr.id === room.floorRegionId && fr.type !== 'polygon') {
+        fr.c0 = room.c0;
+        fr.r0 = room.r0;
+        fr.c1 = room.c1;
+        fr.r1 = room.r1;
+        return;
+      }
+    }
+  }
+
+  function deleteRoomFloorRegionIfAny(room) {
+    if (!room || !room.floorRegionId) return;
+    for (var i = floorRegions.length - 1; i >= 0; i--) {
+      if (floorRegions[i].id === room.floorRegionId) {
+        floorRegions.splice(i, 1);
+        break;
+      }
+    }
+    room.floorRegionId = null;
+  }
+
+  function shiftWorldByGrid(dc, dr) {
+    if (!dc && !dr) return;
+    var i;
+    for (i = 0; i < floorRegions.length; i++) {
+      var fr = floorRegions[i];
+      if (fr.type === 'polygon' && fr.points) {
+        for (var j = 0; j < fr.points.length; j++) {
+          var p = fr.points[j];
+          if (typeof p.vc !== 'undefined') {
+            p.vc += dc;
+            p.vr += dr;
+          } else {
+            p.col = (p.col || p.c || 0) + dc;
+            p.row = (p.row || p.r || 0) + dr;
+            if (typeof p.c !== 'undefined') p.c += dc;
+            if (typeof p.r !== 'undefined') p.r += dr;
+          }
+        }
+      } else {
+        fr.c0 += dc;
+        fr.c1 += dc;
+        fr.r0 += dr;
+        fr.r1 += dr;
+      }
+    }
+    for (i = 0; i < rooms.length; i++) {
+      var rm = rooms[i];
+      rm.c0 += dc; rm.c1 += dc;
+      rm.r0 += dr; rm.r1 += dr;
+    }
+    var p0 = gridToScreen(0, 0);
+    var p1 = gridToScreen(dc, dr);
+    var ddx = p1.x - p0.x, ddy = p1.y - p0.y;
+    for (i = 0; i < kiosks.length; i++) {
+      kiosks[i].x += ddx;
+      kiosks[i].y += ddy;
+    }
+  }
+
+  function isCellFloor(col, row) {
+    for (var i = 0; i < floorRegions.length; i++) {
+      var fr = floorRegions[i];
+      if (fr.type === 'polygon' && fr.points) {
+        if (isCellInPolygonRegion(col, row, fr.points)) return true;
+      } else {
+        if (col >= fr.c0 && col <= fr.c1 && row >= fr.r0 && row <= fr.r1) return true;
+      }
+    }
+    return false;
+  }
+
+  /** (col, row)가 속한 바닥 영역 중 폴리곤 타입이면 해당 영역 반환 (펜 선택용). */
+  function getPolygonFloorAtCell(col, row) {
+    for (var i = 0; i < floorRegions.length; i++) {
+      var fr = floorRegions[i];
+      if (fr.type === 'polygon' && fr.points && isCellInPolygonRegion(col, row, fr.points)) return fr;
+    }
+    return null;
+  }
+
+  /** 펜으로 그린 폴리곤을 바닥 영역으로 추가. points = [{vc, vr}, ...] (꼭짓점) 또는 [{col, row}, ...] */
+  function addFloorRegionPolygon(points) {
+    if (!points || points.length < 3) return null;
+    pushHistory();
+    floorIdCounter++;
+    var normalized = points.map(function(p) {
+      if (typeof p.vc !== 'undefined') return { vc: p.vc, vr: p.vr };
+      return { col: p.col, row: p.row };
+    });
+    var region = { id: floorIdCounter, type: 'polygon', points: normalized };
+    floorRegions.push(region);
+    renderFloors();
+    buildGrid();
+    return floorIdCounter;
+  }
+
+  /** 바닥 영역에서 (col, row) 칸 하나를 제거. 방이 있는 칸은 제거하지 않음. 폴리곤 영역은 전체 제거. */
+  function removeFloorCell(col, row, noRender) {
+    if (isCellInAnyRoom(col, row)) return false;
+    var i = 0;
+    for (; i < floorRegions.length; i++) {
+      var fr = floorRegions[i];
+      if (fr.type === 'polygon' && fr.points && isCellInPolygonRegion(col, row, fr.points)) {
+        floorRegions.splice(i, 1);
+        if (selectedPenFloorId === fr.id) selectedPenFloorId = null;
+        if (!noRender) {
+          renderFloors();
+          buildGrid();
+        }
+        return true;
+      }
+      if (!fr.type || fr.type !== 'polygon') {
+        if (col >= fr.c0 && col <= fr.c1 && row >= fr.r0 && row <= fr.r1) break;
+      }
+    }
+    if (i >= floorRegions.length) return false;
+    var fr = floorRegions[i];
+    if (fr.c0 === col && fr.c1 === col && fr.r0 === row && fr.r1 === row) {
+      floorRegions.splice(i, 1);
+      return true;
+    }
+    var newRegions = [];
+    if (row > fr.r0) {
+      floorIdCounter++;
+      newRegions.push({ id: floorIdCounter, c0: fr.c0, r0: fr.r0, c1: fr.c1, r1: row - 1 });
+    }
+    if (row < fr.r1) {
+      floorIdCounter++;
+      newRegions.push({ id: floorIdCounter, c0: fr.c0, r0: row + 1, c1: fr.c1, r1: fr.r1 });
+    }
+    if (col > fr.c0) {
+      floorIdCounter++;
+      newRegions.push({ id: floorIdCounter, c0: fr.c0, r0: row, c1: col - 1, r1: row });
+    }
+    if (col < fr.c1) {
+      floorIdCounter++;
+      newRegions.push({ id: floorIdCounter, c0: col + 1, r0: row, c1: fr.c1, r1: row });
+    }
+    floorRegions.splice(i, 1);
+    for (var j = 0; j < newRegions.length; j++) {
+      var nr = newRegions[j];
+      if (nr.c0 <= nr.c1 && nr.r0 <= nr.r1) floorRegions.push(nr);
+    }
+    return true;
+  }
+
+  function isValidRoomSize(c0, r0, c1, r1) {
+    var w = Math.abs(c1 - c0) + 1;
+    var h = Math.abs(r1 - r0) + 1;
+    return w >= MIN_ROOM_WIDTH && h >= MIN_ROOM_HEIGHT;
+  }
+
+  function isRealRoomType(room) {
+    var t = room && room.type ? room.type : 'room';
+    return t === 'room';
+  }
+
+  function isCellInAnyRoom(col, row) {
+    for (var i = 0; i < rooms.length; i++) {
+      var room = rooms[i];
+      if (!isRealRoomType(room)) continue;
+      if (col >= room.c0 && col <= room.c1 && row >= room.r0 && row <= room.r1) return true;
+    }
+    return false;
+  }
+
+  function canPlaceRoom(c0, r0, c1, r1) {
+    if (!isValidRoomSize(c0, r0, c1, r1)) return false;
+    for (var r = r0; r <= r1; r++) {
+      for (var c = c0; c <= c1; c++) {
+        if (!isCellFloor(c, r)) return false;
+        if (isCellInAnyRoom(c, r)) return false;
+      }
+    }
+    return true;
+  }
+
+  function getRoomAtCell(col, row) {
+    for (var i = 0; i < rooms.length; i++) {
+      var room = rooms[i];
+      if (col >= room.c0 && col <= room.c1 && row >= room.r0 && row <= room.r1) return room;
+    }
+    return null;
+  }
+
+  function getRoomById(id) {
+    for (var i = 0; i < rooms.length; i++) {
+      if (rooms[i].id === id) return rooms[i];
+    }
+    return null;
+  }
+
+  function rotatePoint(cx, cy, px, py, deg) {
+    var rad = (deg * Math.PI) / 180;
+    var cos = Math.cos(rad), sin = Math.sin(rad);
+    var dx = px - cx, dy = py - cy;
+    return { x: cx + dx * cos - dy * sin, y: cy + dx * sin + dy * cos };
+  }
+
+  /**
+   * 등각 격자 평면 기준 회전.
+   * 화면(x,y)에서 직접 회전하면(유클리드 회전) 등각 타일의 축비와 맞지 않아 45° 부근에서 찌그러져 보일 수 있다.
+   * 따라서 (x,y)를 격자 기저(u,v)로 변환 → (u,v) 회전 → 다시 (x,y)로 변환한다.
+   */
+  function rotatePointOnIsoPlane(cx, cy, px, py, deg) {
+    // 기준점 기준 상대 좌표
+    var dx = px - cx, dy = py - cy;
+    // gridToScreen 선형식:
+    // x = (TILE_W/2)*(u - v), y = (TILE_H/2)*(u + v)
+    // => u = x/TILE_W + y/TILE_H, v = y/TILE_H - x/TILE_W
+    var u = (dx / TILE_W) + (dy / TILE_H);
+    var v = (dy / TILE_H) - (dx / TILE_W);
+    var d = ((deg % 360) + 360) % 360;
+    var ur, vr;
+    // 90도 계열은 삼각함수 부동소수 오차를 피하기 위해 정수 변환 사용
+    if (d === 0) { ur = u; vr = v; }
+    else if (d === 90) { ur = -v; vr = u; }
+    else if (d === 180) { ur = -u; vr = -v; }
+    else if (d === 270) { ur = v; vr = -u; }
+    else {
+      var rad = (d * Math.PI) / 180;
+      var cos = Math.cos(rad), sin = Math.sin(rad);
+      ur = u * cos - v * sin;
+      vr = u * sin + v * cos;
+    }
+    // 역변환: x = (TILE_W/2)*(u-v), y = (TILE_H/2)*(u+v)
+    var rx = (TILE_W / 2) * (ur - vr);
+    var ry = (TILE_H / 2) * (ur + vr);
+    return { x: cx + rx, y: cy + ry };
+  }
+
+  function snapToCellCenter(ptx, pty) {
+    var c = getCellAtPoint(ptx, pty);
+    if (!c) return { x: ptx, y: pty };
+    return gridToScreen(c.col, c.row);
+  }
+
+  /** 키오스크: 항상 셀 중심에 스냅 (anchor = gridToScreen(col, row)) */
+  function snapKioskPosition(ptx, pty) {
+    return snapToCellCenter(ptx, pty);
+  }
+
+  /** 칸 (c,r) 회색 바닥 다이아몬드 꼭짓점 (getDiamondPoints와 동일). */
+  function screenCellDiamondTop(c, r) {
+    var p = gridToScreen(c, r);
+    return { x: p.x, y: p.y - HH };
+  }
+  function screenCellDiamondRight(c, r) {
+    var p = gridToScreen(c, r);
+    return { x: p.x + HW, y: p.y };
+  }
+  function screenCellDiamondBottom(c, r) {
+    var p = gridToScreen(c, r);
+    return { x: p.x, y: p.y + HH };
+  }
+  function screenCellDiamondLeft(c, r) {
+    var p = gridToScreen(c, r);
+    return { x: p.x - HW, y: p.y };
+  }
+
+  /**
+   * 격자 직사각형 [c0,c1]×[r0,r1]을 덮는 바닥 외곽 4점.
+   * 셀 **중심**이 아니라 다이아 **꼭짓점**을 쓰므로 회색 바닥과 100% 맞고, 인접 방은 변을 공유해 틈이 없음.
+   */
+  function getAxisAlignedRoomFootprintBase(c0, r0, c1, r1) {
+    return [
+      screenCellDiamondTop(c0, r0),
+      screenCellDiamondRight(c1, r0),
+      screenCellDiamondBottom(c1, r1),
+      screenCellDiamondLeft(c0, r1)
+    ];
+  }
+
+  /** 방의 회전 적용된 바닥/윗면 꼭짓점 (다이아 타일 합집합 외곽 + 필요 시 4점 폴백). */
+  function getRoomRotatedCorners(room) {
+    var c0 = room.c0, r0 = room.r0, c1 = room.c1, r1 = room.r1;
+    var deg = room.rotationDeg || 0;
+    /* float 좌표(export 회전)일 때 셀 반복 건너뛰고 4코너 직접 계산 */
+    var isInt = (c0 === Math.round(c0) && r0 === Math.round(r0) && c1 === Math.round(c1) && r1 === Math.round(r1));
+    var basePts;
+    if (isInt) {
+      var cellsToAdd = [];
+      for (var rr = r0; rr <= r1; rr++) {
+        for (var cc = c0; cc <= c1; cc++) {
+          cellsToAdd.push({ col: cc, row: rr });
+        }
+      }
+      var merged = getOrderedBoundaryVerticesFromCells(cellsToAdd);
+      basePts = merged && merged.length >= 4
+        ? merged.map(function(pt) { return { x: pt.x, y: pt.y }; })
+        : getAxisAlignedRoomFootprintBase(c0, r0, c1, r1).map(function(p) { return { x: p.x, y: p.y }; });
+    } else {
+      basePts = getAxisAlignedRoomFootprintBase(c0, r0, c1, r1).map(function(p) { return { x: p.x, y: p.y }; });
+    }
+    var n = basePts.length;
+    if (deg !== 0) {
+      var rcx = 0, rcy = 0;
+      for (var i = 0; i < n; i++) {
+        rcx += basePts[i].x;
+        rcy += basePts[i].y;
+      }
+      rcx /= n;
+      rcy /= n;
+      for (var j = 0; j < n; j++) {
+        var rp = rotatePointOnIsoPlane(rcx, rcy, basePts[j].x, basePts[j].y, deg);
+        basePts[j].x = rp.x;
+        basePts[j].y = rp.y;
+      }
+    }
+    if (ROOM_FOOTPRINT_SCALE !== 1) {
+      basePts = scaleRoomFootprintN(basePts, ROOM_FOOTPRINT_SCALE);
+      n = basePts.length;
+    }
+    var ot = ROOM_EDGE_OFFSET_PX, or_ = ROOM_EDGE_OFFSET_PX, ob = ROOM_EDGE_OFFSET_PX, ol = ROOM_EDGE_OFFSET_PX;
+    if (n === 4 && (ot > 0 || or_ > 0 || ob > 0 || ol > 0)) {
+      var scaled = offsetRoomEdgesOptional(basePts[0], basePts[1], basePts[2], basePts[3], ot, or_, ob, ol);
+      basePts[0] = scaled[0];
+      basePts[1] = scaled[1];
+      basePts[2] = scaled[2];
+      basePts[3] = scaled[3];
+    }
+    var H;
+    if (room.type === 'facility' || room.type === 'door') H = 0;
+    else if (room.type === 'counter') H = ROOM_HEIGHT / 2;
+    else H = ROOM_HEIGHT;
+    var topPts = [];
+    for (var t = 0; t < n; t++) {
+      topPts.push({ x: basePts[t].x, y: basePts[t].y - H });
+    }
+    return { base: basePts, top: topPts };
+  }
+
+  function canPlaceRoomForMove(c0, r0, c1, r1, excludeRoomId) {
+    if (!isValidRoomSize(c0, r0, c1, r1)) return false;
+    for (var r = r0; r <= r1; r++) {
+      for (var c = c0; c <= c1; c++) {
+        if (!isCellFloor(c, r)) return false;
+        var room = getRoomAtCell(c, r);
+        if (room && room.id !== excludeRoomId) return false;
+      }
+    }
+    return true;
+  }
+
+  function getRoomTopFacePoints(room) {
+    return getRoomRotatedCorners(room).top;
+  }
+
+  function distPointToSegment(px, py, x1, y1, x2, y2) {
+    var dx = x2 - x1, dy = y2 - y1;
+    var len = Math.sqrt(dx * dx + dy * dy);
+    if (len < 1e-6) return Math.sqrt((px - x1) * (px - x1) + (py - y1) * (py - y1));
+    var t = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / (len * len)));
+    var qx = x1 + t * dx, qy = y1 + t * dy;
+    return Math.sqrt((px - qx) * (px - qx) + (py - qy) * (py - qy));
+  }
+
+  function getClosestResizeEdge(room, px, py) {
+    var c4 = getTopFace4Corners(room);
+    if (!c4) return 'bottom';
+    // c4 순서: [topPt, rightPt, bottomPt, leftPt]
+    // 변 이름은 시작 꼭짓점 기준:
+    //   j=0: top→right 변 = 'top'  (r0 경계, nesw)
+    //   j=1: right→bottom 변 = 'right' (c1 경계, nwse)
+    //   j=2: bottom→left 변 = 'bottom' (r1 경계, nesw)
+    //   j=3: left→top 변 = 'left'  (c0 경계, nwse)
+    var names = ['top', 'right', 'bottom', 'left'];
+    var minLen = getRoomTopFaceMinEdgeLen(room);
+    var cornerR = Math.min(RESIZE_CORNER_RADIUS, minLen * 0.35);
+    // 꼭짓점 근처는 꼭짓점 이름 우선
+    var minCornerD = Infinity, cornerResult = null;
+    for (var i = 0; i < 4; i++) {
+      var cdx = px - c4[i].x, cdy = py - c4[i].y;
+      var d = cdx * cdx + cdy * cdy;
+      if (d < cornerR * cornerR && d < minCornerD) { minCornerD = d; cornerResult = names[i]; }
+    }
+    if (cornerResult) return cornerResult;
+    // 꼭짓점 존 밖: 가장 가까운 변
+    var minD = Infinity, bestEdge = 'bottom';
+    for (var j = 0; j < 4; j++) {
+      var a = c4[j], b = c4[(j + 1) % 4];
+      var ds = distPointToSegment(px, py, a.x, a.y, b.x, b.y);
+      if (ds < minD) { minD = ds; bestEdge = names[j]; }
+    }
+    return bestEdge;
+  }
+
+  function pointInPolygon(px, py, points) {
+    var n = points.length;
+    var inside = false;
+    for (var i = 0, j = n - 1; i < n; j = i++) {
+      var xi = points[i].x, yi = points[i].y;
+      var xj = points[j].x, yj = points[j].y;
+      if (((yi > py) !== (yj > py)) && (px < (xj - xi) * (py - yi) / (yj - yi) + xi)) inside = !inside;
+    }
+    return inside;
+  }
+
+  /** 폴리곤 꼭짓점으로 둘러싸인 칸 목록. points = [{col, row}, ...] 또는 [{vc, vr}, ...] (0.5 단위 꼭짓점) */
+  function polygonPointsToCells(points) {
+    if (!points || points.length < 3) return [];
+    var useVertex = typeof points[0].vc !== 'undefined';
+    var minC, maxC, minR, maxR;
+    var pts = [];
+    for (var i = 0; i < points.length; i++) {
+      var p = points[i];
+      var x, y;
+      if (useVertex) {
+        x = p.vc;
+        y = p.vr;
+      } else {
+        x = typeof p.col !== 'undefined' ? p.col : p.c;
+        y = typeof p.row !== 'undefined' ? p.row : p.r;
+      }
+      if (i === 0) { minC = x; maxC = x; minR = y; maxR = y; }
+      else {
+        if (x < minC) minC = x;
+        if (x > maxC) maxC = x;
+        if (y < minR) minR = y;
+        if (y > maxR) maxR = y;
+      }
+      pts.push({ x: x, y: y });
+    }
+    var c0 = Math.floor(minC), c1 = Math.ceil(maxC), r0 = Math.floor(minR), r1 = Math.ceil(maxR);
+    var out = [];
+    for (var r = r0; r <= r1; r++) {
+      for (var c = c0; c <= c1; c++) {
+        if (pointInPolygon(c + 0.5, r + 0.5, pts)) out.push({ col: c, row: r });
+      }
+    }
+    return out;
+  }
+
+  function isCellInPolygonRegion(col, row, points) {
+    var pts = (points || []).map(function(p) {
+      if (typeof p.vc !== 'undefined') return { x: p.vc, y: p.vr };
+      return { x: typeof p.col !== 'undefined' ? p.col : p.c, y: typeof p.row !== 'undefined' ? p.row : p.r };
+    });
+    return pts.length >= 3 && pointInPolygon(col + 0.5, row + 0.5, pts);
+  }
+
+  function getRoomOverTopFace(px, py) {
+    var list = rooms.slice().sort(function(a, b) {
+      return getRoomScreenY(a) - getRoomScreenY(b);
+    });
+    for (var i = list.length - 1; i >= 0; i--) {
+      var pts = getRoomTopFacePoints(list[i]);
+      if (pointInPolygon(px, py, pts)) return list[i];
+    }
+    return null;
+  }
+
+  function getRoomScreenBounds(room) {
+    var c = getRoomRotatedCorners(room);
+    var pts = c.base.concat(c.top);
+    var minX = pts[0].x, maxX = pts[0].x, minY = pts[0].y, maxY = pts[0].y;
+    for (var i = 1; i < pts.length; i++) {
+      if (pts[i].x < minX) minX = pts[i].x;
+      if (pts[i].x > maxX) maxX = pts[i].x;
+      if (pts[i].y < minY) minY = pts[i].y;
+      if (pts[i].y > maxY) maxY = pts[i].y;
+    }
+    return { minX: minX, maxX: maxX, minY: minY, maxY: maxY };
+  }
+
+  function isPointInRoomWholeBounds(room, px, py, pad) {
+    var b = getRoomScreenBounds(room);
+    var p = pad || 0;
+    return px >= b.minX - p && px <= b.maxX + p && py >= b.minY - p && py <= b.maxY + p;
+  }
+
+  /* 리사이즈 영역: 이 거리(px) 안에 있을 때만 커서 변경·크기조절 가능 (모서리/변 가까울 때만) */
+  var RESIZE_CORNER_RADIUS = 12;
+  var RESIZE_EDGE_THRESHOLD = 8;
+
+  function getMinDistToEdgesAndCorners(room, px, py) {
+    var pts = getRoomTopFacePoints(room);
+    var n = pts.length;
+    function distToPoint(ax, ay) {
+      return Math.sqrt((px - ax) * (px - ax) + (py - ay) * (py - ay));
+    }
+    var minEdge = 1e9;
+    for (var ei = 0; ei < n; ei++) {
+      var ej = (ei + 1) % n;
+      var ds = distPointToSegment(px, py, pts[ei].x, pts[ei].y, pts[ej].x, pts[ej].y);
+      if (ds < minEdge) minEdge = ds;
+    }
+    var minCorner = 1e9;
+    for (var ci = 0; ci < n; ci++) {
+      var dc = distToPoint(pts[ci].x, pts[ci].y);
+      if (dc < minCorner) minCorner = dc;
+    }
+    return { minEdge: minEdge, minCorner: minCorner };
+  }
+
+  function getRoomTopFaceMinEdgeLen(room) {
+    var pts = getRoomTopFacePoints(room);
+    var n = pts.length;
+    function dist(ax, ay, bx, by) {
+      var ddx = bx - ax, ddy = by - ay;
+      return Math.sqrt(ddx * ddx + ddy * ddy);
+    }
+    var minL = Infinity;
+    for (var i = 0; i < n; i++) {
+      var j = (i + 1) % n;
+      var el = dist(pts[i].x, pts[i].y, pts[j].x, pts[j].y);
+      if (el < minL) minL = el;
+    }
+    return minL;
+  }
+
+  function getTopFace4Corners(room) {
+    var pts = getRoomTopFacePoints(room);
+    var n = pts.length;
+    if (n === 0) return null;
+    var topPt = pts[0], rightPt = pts[0], bottomPt = pts[0], leftPt = pts[0];
+    for (var i = 1; i < n; i++) {
+      if (pts[i].y < topPt.y)    topPt    = pts[i];
+      if (pts[i].x > rightPt.x)  rightPt  = pts[i];
+      if (pts[i].y > bottomPt.y) bottomPt = pts[i];
+      if (pts[i].x < leftPt.x)   leftPt   = pts[i];
+    }
+    return [topPt, rightPt, bottomPt, leftPt];
+  }
+
+  function isInResizeZone(room, px, py) {
+    var corners = getTopFace4Corners(room);
+    if (!corners) return false;
+    var minLen = getRoomTopFaceMinEdgeLen(room);
+    // 코너 반지름
+    var cornerR = Math.min(RESIZE_CORNER_RADIUS, minLen * 0.35);
+    for (var i = 0; i < 4; i++) {
+      var dx = px - corners[i].x, dy = py - corners[i].y;
+      if (dx * dx + dy * dy < cornerR * cornerR) return true;
+    }
+    // 4개 모서리 변(edge) 근처도 활성화
+    var edgeTh = Math.min(RESIZE_EDGE_THRESHOLD, minLen * 0.22);
+    for (var j = 0; j < 4; j++) {
+      var a = corners[j], b = corners[(j + 1) % 4];
+      var ds = distPointToSegment(px, py, a.x, a.y, b.x, b.y);
+      if (ds < edgeTh) return true;
+    }
+    return false;
+  }
+
+  function getResizeCursor(room, px, py) {
+    var edge = getClosestResizeEdge(room, px, py);
+    return (edge === 'right' || edge === 'left') ? 'nwse-resize' : 'nesw-resize';
+  }
+
+  function placeRoom(c0, r0, c1, r1) {
+    pushHistory();
+    roomIdCounter++;
+    rooms.push({
+      id: roomIdCounter,
+      c0: c0, r0: r0, c1: c1, r1: r1,
+      label: roomIdCounter + '번',
+      code: 'S' + roomIdCounter,
+      type: 'room',
+      faceSide: 'right',
+      rotationDeg: 0,
+      floorRegionId: null
+    });
+    var last = rooms[rooms.length - 1];
+    last.floorRegionId = addFloorRegionForRoom(c0, r0, c1, r1) || null;
+    renderRooms();
+  }
+
+  function placeRoomWithLabel(c0, r0, c1, r1, label, code, type, faceSide, skipPushHistory) {
+    if (!skipPushHistory) pushHistory();
+    roomIdCounter++;
+    var id = roomIdCounter;
+    rooms.push({
+      id: id,
+      c0: c0, r0: r0, c1: c1, r1: r1,
+      label: label || (id + '번'),
+      code: code || ('S' + id),
+      type: type || 'room',
+      faceSide: faceSide || 'right',
+      rotationDeg: 0,
+      floorRegionId: null
+    });
+    var lastR = rooms[rooms.length - 1];
+    lastR.floorRegionId = addFloorRegionForRoom(c0, r0, c1, r1) || null;
+    renderRooms();
+    return id;
+  }
+
+  var wrap = document.querySelector('.wrap');
+  document.addEventListener('keydown', function(e) {
+    if (e.code === 'Space') {
+      spaceKeyDown = true;
+      e.preventDefault();
+      if (wrap) wrap.style.cursor = 'grab';
+      if (svg) svg.style.cursor = 'grab';
+    }
+  });
+  document.addEventListener('keyup', function(e) {
+    if (e.code === 'Space') {
+      spaceKeyDown = false;
+      if (isPanning) isPanning = false;
+      if (wrap) wrap.style.cursor = '';
+      if (svg) svg.style.cursor = '';
+    }
+  });
+  svg.addEventListener('mousedown', function(e) {
+    e.preventDefault();
+    if (wrap) wrap.focus();
+    if (spaceKeyDown) {
+      isPanning = true;
+      panStartClientX = e.clientX;
+      panStartClientY = e.clientY;
+      panStartPanX = panX;
+      panStartPanY = panY;
+      if (wrap) wrap.style.cursor = 'grabbing';
+      if (svg) svg.style.cursor = 'grabbing';
+      return;
+    }
+    var pt = getSVGPoint(e);
+    if (e.altKey && !eraserMode && !penMode) {
+      var cw = getCellAtPoint(pt.x, pt.y);
+      if (cw && isCellFloor(cw.col, cw.row) && !getRoomOverTopFace(pt.x, pt.y)) {
+        movingWorld = true;
+        worldDragStart = { col: cw.col, row: cw.row };
+        worldDragCur = { col: cw.col, row: cw.row };
+        return;
+      }
+    }
+    var kioskGroup = e.target.closest && e.target.closest('.kiosk-on-stage');
+    if (kioskGroup) {
+      selectedRoomId = null;
+      selectedKioskIndex = null;
+      lastClickRoomId = null;
+      var idx = parseInt(kioskGroup.getAttribute('data-kiosk-index'), 10);
+      if (!isNaN(idx) && kiosks[idx]) {
+        selectedKioskIndex = idx;
+        pushHistory();
+        renderKiosks();
+        movingKioskIndex = idx;
+        moveKioskStart = { index: idx, startX: kiosks[idx].x, startY: kiosks[idx].y, offsetX: pt.x - kiosks[idx].x, offsetY: pt.y - kiosks[idx].y };
+        return;
+      }
+    }
+    if (eraserMode) {
+      var cell = getCellAtPoint(pt.x, pt.y);
+      if (cell !== null) {
+        dragStart = { col: cell.col, row: cell.row };
+        dragCurrent = { col: cell.col, row: cell.row };
+        renderFloorPreview();
+      }
+      return;
+    }
+    if (penMode) {
+      var vertex = getGridVertexAtPoint(pt.x, pt.y);
+      /* 첫 포인트로 돌아오면 → 바로 바닥 생성, 선택 없이 다음 그리기 대기 */
+      if (penPoints.length >= 3 && penPoints[0].vc === vertex.vc && penPoints[0].vr === vertex.vr) {
+        addFloorRegionPolygon(penPoints);
+        penPoints = []; penCursorPos = null;
+        penMode = false;
+        var btnPenEl = document.getElementById('btnPen');
+        if (btnPenEl) btnPenEl.classList.remove('pen-on');
+        if (wrap) wrap.style.cursor = '';
+        if (svg) svg.style.cursor = '';
+        selectedPenFloorId = null;
+        selectedRoomId = null;
+        selectedKioskIndex = null;
+        renderPenPreview();
+        renderFloors();
+        return;
+      }
+      /* 포인트 추가 (기존 바닥 선택 없이 바로 그리기) */
+      var isDup = penPoints.length > 0 && penPoints[penPoints.length - 1].vc === vertex.vc && penPoints[penPoints.length - 1].vr === vertex.vr;
+      if (!isDup) {
+        penPoints.push({ vc: vertex.vc, vr: vertex.vr });
+      }
+      renderPenPreview();
+      return;
+    }
+    var roomGroup = e.target.closest && e.target.closest('.room-group');
+    var hintEl = document.getElementById('extraHint');
+    /* 연결방 화살표 클릭 → 삭제 */
+    var arrowEl = e.target.closest ? e.target.closest('[data-link-id]') : (e.target.getAttribute && e.target.getAttribute('data-link-id') ? e.target : null);
+    if (arrowEl && linkPickMode) {
+      var deleteLinkId = parseInt(arrowEl.getAttribute('data-link-id'), 10);
+      pushHistory();
+      roomLinks = roomLinks.filter(function(l) { return l.id !== deleteLinkId; });
+      linkPickFirstRoomId = null;
+      if (hintEl) hintEl.textContent = '연결방: 방을 클릭해 연결, 화살표 클릭해 삭제';
+      renderRoomLinks();
+      return;
+    }
+    if (roomGroup && linkPickMode) {
+      selectedKioskIndex = null;
+      var linkRid = parseInt(roomGroup.getAttribute('data-room-id'), 10);
+      var linkRoom = getRoomById(linkRid);
+      if (linkRoom) {
+        if (linkPickFirstRoomId == null) {
+          linkPickFirstRoomId = linkRid;
+          if (hintEl) hintEl.textContent = '연결: 다른 방을 클릭하세요';
+          return;
+        }
+        if (linkPickFirstRoomId !== linkRid) {
+          pushHistory();
+          roomLinkIdCounter++;
+          roomLinks.push({ id: roomLinkIdCounter, a: linkPickFirstRoomId, b: linkRid });
+          linkPickFirstRoomId = null;
+          if (hintEl) hintEl.textContent = '';
+          renderRoomLinks();
+        }
+        return;
+      }
+    }
+    if (roomGroup) {
+      selectedKioskIndex = null;
+      var roomId = parseInt(roomGroup.getAttribute('data-room-id'), 10);
+      var room = getRoomById(roomId);
+      if (room) {
+        var cell = getCellAtPoint(pt.x, pt.y);
+        var cellInRoom = cell && cell.col >= room.c0 && cell.col <= room.c1 && cell.row >= room.r0 && cell.row <= room.r1;
+        var topPl = getRoomTopFacePoints(room);
+        var basePl = getRoomRotatedCorners(room).base;
+        var onTopFace = pointInPolygon(pt.x, pt.y, topPl);
+        var onBaseFace = pointInPolygon(pt.x, pt.y, basePl);
+        /* 측면(side face) 포함: 실제 방 3D 형태 안에서만 클릭 인정 */
+        var hitRoom = cellInRoom || onTopFace || onBaseFace;
+        if (hitRoom) {
+          if (isInResizeZone(room, pt.x, pt.y)) {
+            selectedRoomId = roomId;
+            pendingResizeRoomId = roomId;
+            pendingResizeEdge = getClosestResizeEdge(room, pt.x, pt.y);
+            pendingResizeStart = { x: pt.x, y: pt.y };
+            var cur = getResizeCursor(room, pt.x, pt.y);
+            if (wrap) wrap.style.cursor = cur;
+            svg.style.cursor = cur;
+            renderRooms();
+            return;
+          }
+          selectedRoomId = roomId;
+          movingRoomId = roomId;
+          var gc = Math.round((room.c0 + room.c1) / 2);
+          var gr = Math.round((room.r0 + room.r1) / 2);
+          var oc = cell ? cell.col : gc;
+          var or_ = cell ? cell.row : gr;
+          movingRoomStart = { c0: room.c0, r0: room.r0, c1: room.c1, r1: room.r1, offsetCol: oc - room.c0, offsetRow: or_ - room.r0 };
+          movingRoomPreview = { c0: room.c0, r0: room.r0, c1: room.c1, r1: room.r1 };
+          renderRooms();
+          return;
+        }
+      }
+    }
+    selectedRoomId = null;
+    selectedKioskIndex = null;
+    lastClickRoomId = null;
+    renderRooms();
+    renderKiosks();
+    var cell = getCellAtPoint(pt.x, pt.y);
+    if (cell === null) return;
+    dragStart = { col: cell.col, row: cell.row };
+    dragCurrent = { col: cell.col, row: cell.row };
+    renderFloorPreview();
+  });
+
+  svg.addEventListener('mousemove', function(e) {
+    if (isPanning) {
+      panX = panStartPanX + (e.clientX - panStartClientX);
+      panY = panStartPanY + (e.clientY - panStartClientY);
+      applyZoom();
+      return;
+    }
+    var pt = getSVGPoint(e);
+    var cell = getCellAtPoint(pt.x, pt.y);
+    if (movingWorld && cell) {
+      worldDragCur = { col: cell.col, row: cell.row };
+      return;
+    }
+    if (movingKioskIndex !== null && moveKioskStart) {
+      var nx = pt.x - moveKioskStart.offsetX;
+      var ny = pt.y - moveKioskStart.offsetY;
+      var snapK = snapKioskPosition(nx, ny);
+      kiosks[movingKioskIndex].x = snapK.x;
+      kiosks[movingKioskIndex].y = snapK.y;
+      renderKiosks();
+      return;
+    }
+    if (pendingResizeRoomId !== null && !resizingRoomId) {
+      var dx0 = pt.x - pendingResizeStart.x;
+      var dy0 = pt.y - pendingResizeStart.y;
+      if (Math.sqrt(dx0 * dx0 + dy0 * dy0) > 3) {
+        // 실제 드래그가 시작된 경우에만 리사이즈 모드 진입
+        pushHistory();
+        resizingRoomId = pendingResizeRoomId;
+        resizeEdge = pendingResizeEdge;
+        pendingResizeRoomId = null;
+        pendingResizeEdge = null;
+        pendingResizeStart = null;
+      }
+    }
+    if (resizingRoomId !== null && resizeEdge) {
+      var room = getRoomById(resizingRoomId);
+      if (room) {
+        var resizeCell = cell;
+        var degR = room.rotationDeg || 0;
+        if (degR !== 0) {
+          // 회전된 방 리사이즈: 마우스 좌표를 방 중심 기준으로 역회전해
+          // 비회전 격자축(c/r)으로 변환한 뒤 edge를 갱신해야 옆면/위치가 같이 줄어드는 현상을 줄일 수 있다.
+          var rc = getRoomRotatedCorners(room).top;
+          var rcx2 = 0, rcy2 = 0;
+          for (var rci = 0; rci < rc.length; rci++) {
+            rcx2 += rc[rci].x;
+            rcy2 += rc[rci].y;
+          }
+          rcx2 /= rc.length;
+          rcy2 /= rc.length;
+          var unrotPt = rotatePointOnIsoPlane(rcx2, rcy2, pt.x, pt.y, -degR);
+          resizeCell = getCellAtPoint(unrotPt.x, unrotPt.y);
+        }
+        if (!resizeCell) return;
+        var c0 = room.c0, r0 = room.r0, c1 = room.c1, r1 = room.r1;
+        if (resizeEdge === 'top') r0 = Math.max(-GRID_LIMIT, Math.min(resizeCell.row, r1 - MIN_ROOM_HEIGHT + 1));
+        else if (resizeEdge === 'bottom') r1 = Math.min(GRID_LIMIT, Math.max(resizeCell.row, r0 + MIN_ROOM_HEIGHT - 1));
+        else if (resizeEdge === 'left') c0 = Math.max(-GRID_LIMIT, Math.min(resizeCell.col, c1 - MIN_ROOM_WIDTH + 1));
+        else if (resizeEdge === 'right') c1 = Math.min(GRID_LIMIT, Math.max(resizeCell.col, c0 + MIN_ROOM_WIDTH - 1));
+        if (canPlaceRoomForMove(c0, r0, c1, r1, resizingRoomId)) {
+          room.c0 = c0;
+          room.r0 = r0;
+          room.c1 = c1;
+          room.r1 = r1;
+          renderRooms();
+        }
+      }
+      return;
+    }
+    if (movingRoomId !== null && movingRoomStart && cell) {
+      var w = movingRoomStart.c1 - movingRoomStart.c0 + 1, h = movingRoomStart.r1 - movingRoomStart.r0 + 1;
+      var nc0 = cell.col - movingRoomStart.offsetCol, nr0 = cell.row - movingRoomStart.offsetRow;
+      var nc1 = nc0 + w - 1, nr1 = nr0 + h - 1;
+      if (nc0 >= -GRID_LIMIT && nc1 <= GRID_LIMIT && nr0 >= -GRID_LIMIT && nr1 <= GRID_LIMIT && canPlaceRoomForMove(nc0, nr0, nc1, nr1, movingRoomId)) {
+        movingRoomPreview = { c0: nc0, r0: nr0, c1: nc1, r1: nr1 };
+      } else {
+        movingRoomPreview = null;
+      }
+      renderRooms();
+      return;
+    }
+    if (dragStart && cell !== null) {
+      dragCurrent = { col: cell.col, row: cell.row };
+      renderFloorPreview();
+      // 드래그 중 사이즈 힌트 위치를 마우스 근처로 이동
+      if (dragSizeHintEl) {
+        dragSizeHintEl.style.left = (e.clientX + 12) + 'px';
+        dragSizeHintEl.style.top = (e.clientY + 12) + 'px';
+      }
+    }
+    if (movingKioskIndex === null && movingRoomId === null && !dragStart && resizingRoomId === null && !movingWorld) {
+      if (eraserMode) {
+        if (wrap) wrap.style.cursor = 'crosshair';
+        svg.style.cursor = 'crosshair';
+      } else {
+        // resize zone 먼저 검사 (top face 경계 꼭짓점은 pointInPolygon 밖이므로 별도 체크)
+        var resizeRoom = null;
+        for (var rzi = rooms.length - 1; rzi >= 0; rzi--) {
+          if (isInResizeZone(rooms[rzi], pt.x, pt.y)) { resizeRoom = rooms[rzi]; break; }
+        }
+        var cursor = resizeRoom ? getResizeCursor(resizeRoom, pt.x, pt.y) : 'crosshair';
+        if (wrap) wrap.style.cursor = cursor;
+        svg.style.cursor = cursor;
+      }
+    }
+    /* 펜 모드: 커서 따라가는 라이브 라인 (패닝 중에는 스킵) */
+    if (penMode && penPoints.length > 0 && !isPanning) {
+      var vertex = getGridVertexAtPoint(pt.x, pt.y);
+      penCursorPos = vertexToScreen(vertex.vc, vertex.vr);
+      renderPenPreview();
+    }
+  });
+
+  svg.addEventListener('mouseup', function(e) {
+    if (isPanning) {
+      isPanning = false;
+      if (wrap) wrap.style.cursor = spaceKeyDown ? 'grab' : '';
+      if (svg) svg.style.cursor = spaceKeyDown ? 'grab' : '';
+      return;
+    }
+    if (movingWorld && worldDragStart && worldDragCur) {
+      var dc = worldDragCur.col - worldDragStart.col;
+      var dr = worldDragCur.row - worldDragStart.row;
+      movingWorld = false;
+      worldDragStart = null;
+      worldDragCur = null;
+      if (dc || dr) {
+        pushHistory();
+        shiftWorldByGrid(dc, dr);
+        renderFloors();
+        renderRooms();
+        renderKiosks();
+        buildGrid();
+      }
+      return;
+    }
+    if (draggingKiosk) return;
+    var pt = getSVGPoint(e);
+
+    if (resizingRoomId !== null || pendingResizeRoomId !== null) {
+      var ridDone = resizingRoomId != null ? resizingRoomId : pendingResizeRoomId;
+      var rmDone = ridDone != null ? getRoomById(ridDone) : null;
+      if (rmDone) {
+        syncRoomFloorRegion(rmDone);
+        renderFloors();
+        buildGrid();
+      }
+      resizingRoomId = null;
+      resizeEdge = null;
+      pendingResizeRoomId = null;
+      pendingResizeEdge = null;
+      pendingResizeStart = null;
+      if (wrap) wrap.style.cursor = 'crosshair';
+      svg.style.cursor = 'crosshair';
+      return;
+    }
+
+    if (movingKioskIndex !== null && moveKioskStart) {
+      var k = kiosks[movingKioskIndex];
+      var dx = Math.abs(k.x - moveKioskStart.startX), dy = Math.abs(k.y - moveKioskStart.startY);
+      if (dx < 4 && dy < 4) {
+        editingKioskIndex = movingKioskIndex;
+        document.getElementById('kioskEditWrap').classList.add('show');
+        if (window.__refreshKioskScaleUI) window.__refreshKioskScaleUI();
+      }
+      movingKioskIndex = null;
+      moveKioskStart = null;
+      renderKiosks();
+      return;
+    }
+
+    if (movingRoomId !== null) {
+      var room = getRoomById(movingRoomId);
+      var samePos = movingRoomStart && movingRoomPreview &&
+        movingRoomPreview.c0 === movingRoomStart.c0 && movingRoomPreview.r0 === movingRoomStart.r0 &&
+        movingRoomPreview.c1 === movingRoomStart.c1 && movingRoomPreview.r1 === movingRoomStart.r1;
+      if (room && samePos) {
+        var now = Date.now();
+        if (lastClickRoomId === room.id && (now - lastClickTime) < DOUBLE_CLICK_MS) {
+          lastClickRoomId = null;
+          lastClickTime = 0;
+          editingRoomId = room.id;
+          document.getElementById('editLabel').value = room.label || (room.id + '번');
+          document.getElementById('editLabelCode').value = (room.code === '' ? '' : (room.code || ('S' + room.id)));
+          document.getElementById('editTypeRoom').checked = (!room.type || room.type === 'room');
+          document.getElementById('editTypeCounter').checked = (room.type === 'counter');
+          document.getElementById('editTypeFacility').checked = (room.type === 'facility');
+          document.getElementById('editTypeDoor').checked = (room.type === 'door');
+          document.getElementById('editFaceRight').checked = (room.faceSide !== 'left');
+          document.getElementById('editFaceLeft').checked = (room.faceSide === 'left');
+          var rotEl = document.getElementById('editRotationValue');
+          if (rotEl) rotEl.textContent = (room.rotationDeg || 0) + '°';
+          var zvEl = document.getElementById('editZValue');
+          if (zvEl) zvEl.textContent = (room.zOrder && room.zOrder !== 0) ? (room.zOrder > 0 ? '+' + room.zOrder : room.zOrder) : '';
+          document.getElementById('editWrap').classList.add('show');
+          document.getElementById('editLabel').focus();
+        } else {
+          lastClickRoomId = room.id;
+          lastClickTime = now;
+        }
+      } else if (room && movingRoomPreview) {
+        pushHistory();
+        room.c0 = movingRoomPreview.c0;
+        room.r0 = movingRoomPreview.r0;
+        room.c1 = movingRoomPreview.c1;
+        room.r1 = movingRoomPreview.r1;
+        syncRoomFloorRegion(room);
+        renderFloors();
+        buildGrid();
+        renderRooms();
+        lastClickRoomId = null;
+      }
+      movingRoomId = null;
+      movingRoomStart = null;
+      movingRoomPreview = null;
+      renderRooms();
+      return;
+    }
+
+    if (!dragStart) return;
+    var cell = screenToGrid(pt.x, pt.y);
+    var c0 = Math.min(dragStart.col, dragCurrent.col);
+    var c1 = Math.max(dragStart.col, dragCurrent.col);
+    var r0 = Math.min(dragStart.row, dragCurrent.row);
+    var r1 = Math.max(dragStart.row, dragCurrent.row);
+    var sameCell = (c0 === c1 && r0 === r1);
+
+    if (eraserMode) {
+      pushHistory();
+      var changed = false;
+      for (var rr = r0; rr <= r1; rr++) {
+        for (var cc = c0; cc <= c1; cc++) {
+          if (isCellFloor(cc, rr) && !isCellInAnyRoom(cc, rr)) {
+            if (removeFloorCell(cc, rr, true)) changed = true;
+          }
+        }
+      }
+      if (changed) {
+        renderFloors();
+        buildGrid();
+      } else {
+        historyStack.pop();
+      }
+      dragStart = null;
+      dragCurrent = null;
+      renderFloorPreview();
+      if (dragSizeHintEl) {
+        dragSizeHintEl.remove();
+        dragSizeHintEl = null;
+      }
+      return;
+    }
+
+    if (sameCell && isCellFloor(dragStart.col, dragStart.row) && !isCellInAnyRoom(dragStart.col, dragStart.row)) {
+      dragStart = null;
+      dragCurrent = null;
+      renderFloorPreview();
+      if (dragSizeHintEl) {
+        dragSizeHintEl.remove();
+        dragSizeHintEl = null;
+      }
+      return;
+    }
+
+    if (sameCell && cell) {
+      var room = getRoomAtCell(cell.col, cell.row);
+      if (room) {
+        var now = Date.now();
+        if (lastClickRoomId === room.id && (now - lastClickTime) < DOUBLE_CLICK_MS) {
+          lastClickRoomId = null;
+          lastClickTime = 0;
+          editingRoomId = room.id;
+          document.getElementById('editLabel').value = room.label || (room.id + '번');
+          document.getElementById('editLabelCode').value = (room.code === '' ? '' : (room.code || ('S' + room.id)));
+          document.getElementById('editTypeRoom').checked = (!room.type || room.type === 'room');
+          document.getElementById('editTypeCounter').checked = (room.type === 'counter');
+          document.getElementById('editTypeFacility').checked = (room.type === 'facility');
+          document.getElementById('editTypeDoor').checked = (room.type === 'door');
+          document.getElementById('editFaceRight').checked = (room.faceSide !== 'left');
+          document.getElementById('editFaceLeft').checked = (room.faceSide === 'left');
+          var rotEl = document.getElementById('editRotationValue');
+          if (rotEl) rotEl.textContent = (room.rotationDeg || 0) + '°';
+          var zvEl = document.getElementById('editZValue');
+          if (zvEl) zvEl.textContent = (room.zOrder && room.zOrder !== 0) ? (room.zOrder > 0 ? '+' + room.zOrder : room.zOrder) : '';
+          document.getElementById('editWrap').classList.add('show');
+          document.getElementById('editLabel').focus();
+        } else {
+          lastClickRoomId = room.id;
+          lastClickTime = now;
+        }
+        selectedRoomId = room.id;
+        renderRooms();
+        dragStart = null;
+        dragCurrent = null;
+        renderFloorPreview();
+        if (dragSizeHintEl) {
+          dragSizeHintEl.remove();
+          dragSizeHintEl = null;
+        }
+        /* 앞뒤 순서 버튼: 앞으로=다른 방에 가려지지 않음, 뒤로=다른 방 뒤에 숨김 */
+        if (hintEl) {
+          hintEl.innerHTML = '<span style="margin-right:8px">' + (room.label || room.id + '번') + '</span>' +
+            '<button type="button" data-z-action="back" style="padding:1px 8px;font-size:11px;cursor:pointer;border:1px solid #ccc;border-radius:3px;background:#fff">▼ 뒤로</button> ' +
+            '<button type="button" data-z-action="front" style="padding:1px 8px;font-size:11px;cursor:pointer;border:1px solid #ccc;border-radius:3px;background:#fff">▲ 앞으로</button>';
+          hintEl.querySelectorAll('button').forEach(function(btn) {
+            btn.addEventListener('click', function(ev) {
+              ev.stopPropagation();
+              var r = getRoomById(selectedRoomId);
+              if (!r) return;
+              pushHistory();
+              if (btn.getAttribute('data-z-action') === 'front') r.zOrder = (r.zOrder || 0) + 1;
+              else r.zOrder = (r.zOrder || 0) - 1;
+              renderRooms();
+            });
+          });
+        }
+        return;
+      }
+    }
+
+    commitFloorDrag();
+    if (dragSizeHintEl) {
+      dragSizeHintEl.remove();
+      dragSizeHintEl = null;
+    }
+  });
+
+  svg.addEventListener('dblclick', function(e) {
+    e.preventDefault();
+    var roomGroup = e.target.closest && e.target.closest('.room-group');
+    if (!roomGroup) {
+      // group을 직접 맞추지 못한 경우에도 전체 외곽 히트로 더블클릭 편집 허용
+      var pt = getSVGPoint(e);
+      var list = rooms.slice().sort(function(a, b) { return getRoomScreenY(a) - getRoomScreenY(b); });
+      for (var i = list.length - 1; i >= 0; i--) {
+        if (isPointInRoomWholeBounds(list[i], pt.x, pt.y, 14)) {
+          roomGroup = roomLayer.querySelector('.room-group[data-room-id="' + String(list[i].id) + '"]');
+          break;
+        }
+      }
+    }
+    if (roomGroup) {
+      var roomId = parseInt(roomGroup.getAttribute('data-room-id'), 10);
+      var room = getRoomById(roomId);
+      if (room) {
+        editingRoomId = room.id;
+        document.getElementById('editLabel').value = room.label || (room.id + '번');
+        document.getElementById('editLabelCode').value = (room.code === '' ? '' : (room.code || ('S' + room.id)));
+        document.getElementById('editTypeRoom').checked = (!room.type || room.type === 'room');
+        document.getElementById('editTypeCounter').checked = (room.type === 'counter');
+        document.getElementById('editTypeFacility').checked = (room.type === 'facility');
+        document.getElementById('editTypeDoor').checked = (room.type === 'door');
+        document.getElementById('editFaceRight').checked = (room.faceSide !== 'left');
+        document.getElementById('editFaceLeft').checked = (room.faceSide === 'left');
+        var rotEl = document.getElementById('editRotationValue');
+        if (rotEl) rotEl.textContent = (room.rotationDeg || 0) + '°';
+        var zvEl = document.getElementById('editZValue');
+        if (zvEl) zvEl.textContent = (room.zOrder && room.zOrder !== 0) ? (room.zOrder > 0 ? '+' + room.zOrder : room.zOrder) : '';
+        document.getElementById('editWrap').classList.add('show');
+        document.getElementById('editLabel').focus();
+      }
+    }
+  });
+
+  svg.addEventListener('mouseleave', function() {
+    if (eraserMode && dragStart) {
+      dragStart = null;
+      dragCurrent = null;
+      renderFloorPreview();
+      return;
+    }
+    if (dragStart) commitFloorDrag();
+    if (resizingRoomId !== null || pendingResizeRoomId !== null) {
+      if (wrap) wrap.style.cursor = 'crosshair';
+      svg.style.cursor = 'crosshair';
+    }
+  });
+  document.addEventListener('mouseup', function() {
+    if (isPanning) {
+      isPanning = false;
+      if (wrap) wrap.style.cursor = spaceKeyDown ? 'grab' : '';
+      if (svg) svg.style.cursor = spaceKeyDown ? 'grab' : '';
+    }
+    if (resizingRoomId !== null || pendingResizeRoomId !== null) {
+      var ridG = resizingRoomId != null ? resizingRoomId : pendingResizeRoomId;
+      var rmG = ridG != null ? getRoomById(ridG) : null;
+      if (rmG) {
+        syncRoomFloorRegion(rmG);
+        renderFloors();
+        buildGrid();
+      }
+      resizingRoomId = null;
+      resizeEdge = null;
+      pendingResizeRoomId = null;
+      pendingResizeEdge = null;
+      pendingResizeStart = null;
+      if (wrap) wrap.style.cursor = 'crosshair';
+      svg.style.cursor = 'crosshair';
+    }
+    if (dragSizeHintEl) {
+      dragSizeHintEl.remove();
+      dragSizeHintEl = null;
+    }
+    if (movingWorld && worldDragStart) {
+      var dc = (worldDragCur ? worldDragCur.col : worldDragStart.col) - worldDragStart.col;
+      var dr = (worldDragCur ? worldDragCur.row : worldDragStart.row) - worldDragStart.row;
+      movingWorld = false;
+      worldDragStart = null;
+      worldDragCur = null;
+      if (dc || dr) {
+        pushHistory();
+        shiftWorldByGrid(dc, dr);
+        renderFloors();
+        renderRooms();
+        renderKiosks();
+        buildGrid();
+      }
+    }
+  });
+
+  document.addEventListener('keydown', function(e) {
+    var tag = (e.target && e.target.tagName) ? e.target.tagName.toUpperCase() : '';
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+
+    if (selectedRoomId != null) {
+      var room = getRoomById(selectedRoomId);
+      if (!room) {
+        selectedRoomId = null;
+      } else {
+      // 방향키로 방 한 칸씩 이동
+      if (e.key === 'ArrowRight' || e.key === 'ArrowLeft' || e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        var dc = 0, dr = 0;
+        if (e.key === 'ArrowRight') dc = 1;
+        else if (e.key === 'ArrowLeft') dc = -1;
+        else if (e.key === 'ArrowDown') dr = 1;
+        else if (e.key === 'ArrowUp') dr = -1;
+        var nc0 = room.c0 + dc, nr0 = room.r0 + dr, nc1 = room.c1 + dc, nr1 = room.r1 + dr;
+        if (nc0 >= -GRID_LIMIT && nc1 <= GRID_LIMIT && nr0 >= -GRID_LIMIT && nr1 <= GRID_LIMIT && canPlaceRoomForMove(nc0, nr0, nc1, nr1, selectedRoomId)) {
+          pushHistory();
+          room.c0 = nc0; room.r0 = nr0; room.c1 = nc1; room.r1 = nr1;
+          syncRoomFloorRegion(room);
+          renderFloors();
+          buildGrid();
+          renderRooms();
+        }
+        return;
+      }
+
+      // Delete / Backspace 로 선택된 방 삭제
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault();
+        for (var ri = 0; ri < rooms.length; ri++) {
+          if (rooms[ri].id === selectedRoomId) {
+            pushHistory();
+            var doomedId = rooms[ri].id;
+            deleteRoomFloorRegionIfAny(rooms[ri]);
+            pruneRoomLinksForDeletedRoom(doomedId);
+            rooms.splice(ri, 1);
+            selectedRoomId = null;
+            renderFloors();
+            buildGrid();
+            renderRooms();
+            break;
+          }
+        }
+        return;
+      }
+      }
+    }
+
+    if ((selectedRoomId == null) && (selectedKioskIndex != null) && (e.key === 'Delete' || e.key === 'Backspace')) {
+      e.preventDefault();
+      if (selectedKioskIndex >= 0 && selectedKioskIndex < kiosks.length) {
+        pushHistory();
+        kiosks.splice(selectedKioskIndex, 1);
+        selectedKioskIndex = null;
+        renderKiosks();
+      }
+      return;
+    }
+
+    if (selectedPenFloorId != null && (e.key === 'Delete' || e.key === 'Backspace')) {
+      e.preventDefault();
+      for (var pi = 0; pi < floorRegions.length; pi++) {
+        if (floorRegions[pi].id === selectedPenFloorId) {
+          pushHistory();
+          floorRegions.splice(pi, 1);
+          selectedPenFloorId = null;
+          renderFloors();
+          buildGrid();
+          return;
+        }
+      }
+      selectedPenFloorId = null;
+      renderFloors();
+      return;
+    }
+
+    if ((e.key === 'c' || e.key === 'C') && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      if (selectedRoomId) {
+        var r = getRoomById(selectedRoomId);
+        if (r) copiedRoom = { c0: r.c0, r0: r.r0, c1: r.c1, r1: r.r1, label: r.label, code: r.code, type: r.type || 'room', faceSide: r.faceSide || 'right' };
+      }
+      return;
+    }
+    if ((e.key === 'v' || e.key === 'V') && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      if (copiedRoom) {
+        var w = copiedRoom.c1 - copiedRoom.c0 + 1, h = copiedRoom.r1 - copiedRoom.r0 + 1;
+        if (w < MIN_ROOM_WIDTH || h < MIN_ROOM_HEIGHT) {
+          return;
+        }
+        var baseC = copiedRoom.c0, baseR = copiedRoom.r0;
+        var candidates = [];
+        var pasteRange = 150;
+        for (var nr0 = baseR - pasteRange; nr0 <= baseR + pasteRange - h; nr0++) {
+          for (var nc0 = baseC - pasteRange; nc0 <= baseC + pasteRange - w; nc0++) {
+            candidates.push({ nc0: nc0, nr0: nr0 });
+          }
+        }
+        candidates.sort(function(a, b) {
+          var da = (a.nc0 - baseC) * (a.nc0 - baseC) + (a.nr0 - baseR) * (a.nr0 - baseR);
+          var db = (b.nc0 - baseC) * (b.nc0 - baseC) + (b.nr0 - baseR) * (b.nr0 - baseR);
+          return da - db;
+        });
+        for (var j = 0; j < candidates.length; j++) {
+          var nc0 = candidates[j].nc0, nr0 = candidates[j].nr0;
+          var nc1 = nc0 + w - 1, nr1 = nr0 + h - 1;
+          if (canPlaceRoom(nc0, nr0, nc1, nr1)) {
+            pushHistory();
+            var newId = placeRoomWithLabel(nc0, nr0, nc1, nr1, null, null, copiedRoom.type, copiedRoom.faceSide, true);
+            selectedRoomId = newId;
+            renderRooms();
+            break;
+          }
+        }
+      }
+      return;
+    }
+
+    if ((e.key === 'z' || e.key === 'Z') && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      undoLast();
+      return;
+    }
+  });
+
+  (function setupKioskDrag() {
+    var paletteItem = document.getElementById('kioskPaletteItem');
+    if (!paletteItem) return;
+    var ghostOffsetX = 24;
+    var ghostOffsetY = 80;
+
+    paletteItem.addEventListener('mousedown', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      draggingKiosk = true;
+      kioskGhost = document.createElement('div');
+      kioskGhost.className = 'kiosk-ghost';
+      kioskGhost.style.left = (e.clientX - ghostOffsetX) + 'px';
+      kioskGhost.style.top = (e.clientY - ghostOffsetY) + 'px';
+      kioskGhost.style.width = '48px';
+      kioskGhost.style.height = '80px';
+      var svgClone = paletteItem.querySelector('svg').cloneNode(true);
+      kioskGhost.appendChild(svgClone);
+      document.body.appendChild(kioskGhost);
+    });
+
+    document.addEventListener('mousemove', function(e) {
+      if (!draggingKiosk || !kioskGhost) return;
+      kioskGhost.style.left = (e.clientX - ghostOffsetX) + 'px';
+      kioskGhost.style.top = (e.clientY - ghostOffsetY) + 'px';
+    });
+
+    document.addEventListener('mouseup', function(e) {
+      if (!draggingKiosk) return;
+      if (kioskGhost) {
+        kioskGhost.remove();
+        kioskGhost = null;
+      }
+      var rect = svg.getBoundingClientRect();
+      if (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
+        var pt = getSVGPoint(e);
+        if (pt.x >= 0 && pt.x <= 900 && pt.y >= 0 && pt.y <= 600) {
+          var snap = snapKioskPosition(pt.x, pt.y);
+          pushHistory();
+          kiosks.push({ x: snap.x, y: snap.y, flipped: false, scale: 1 });
+          renderKiosks();
+        }
+      }
+      draggingKiosk = false;
+    });
+  })();
+
+  (function setupRoomAssetDrag() {
+    var items = document.querySelectorAll('.asset-palette-item[data-asset-room-w]');
+    if (!items.length) return;
+
+    function bindItem(el) {
+      var w = parseInt(el.getAttribute('data-asset-room-w'), 10) || 2;
+      var h = parseInt(el.getAttribute('data-asset-room-h'), 10) || 2;
+      el.addEventListener('mousedown', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        draggingRoomAsset = { w: w, h: h };
+        roomAssetGhost = document.createElement('div');
+        roomAssetGhost.className = 'kiosk-ghost';
+        roomAssetGhost.style.left = (e.clientX - 30) + 'px';
+        roomAssetGhost.style.top = (e.clientY - 20) + 'px';
+        roomAssetGhost.style.width = 'auto';
+        roomAssetGhost.style.padding = '6px 10px';
+        roomAssetGhost.style.background = 'rgba(51,198,176,0.95)';
+        roomAssetGhost.style.color = '#fff';
+        roomAssetGhost.style.fontSize = '12px';
+        roomAssetGhost.style.borderRadius = '8px';
+        roomAssetGhost.textContent = w + '×' + h + ' 방';
+        document.body.appendChild(roomAssetGhost);
+      });
+    }
+    for (var i = 0; i < items.length; i++) bindItem(items[i]);
+
+    document.addEventListener('mousemove', function(e) {
+      if (!draggingRoomAsset || !roomAssetGhost) return;
+      roomAssetGhost.style.left = (e.clientX - 30) + 'px';
+      roomAssetGhost.style.top = (e.clientY - 20) + 'px';
+    });
+
+    document.addEventListener('mouseup', function(e) {
+      if (!draggingRoomAsset) return;
+      if (roomAssetGhost) {
+        roomAssetGhost.remove();
+        roomAssetGhost = null;
+      }
+      var wa = draggingRoomAsset.w, ha = draggingRoomAsset.h;
+      draggingRoomAsset = null;
+      var rect = svg.getBoundingClientRect();
+      if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) return;
+      var pt = getSVGPoint(e);
+      var cell = getCellAtPoint(pt.x, pt.y);
+      if (!cell) return;
+      var c0 = cell.col;
+      var r0 = cell.row;
+      var c1 = c0 + wa - 1;
+      var r1 = r0 + ha - 1;
+      if (!canPlaceRoom(c0, r0, c1, r1)) return;
+      pushHistory();
+      placeRoomWithLabel(c0, r0, c1, r1, null, null, 'room', 'right', true);
+    });
+  })();
+
+  document.getElementById('editOk').addEventListener('click', function() {
+    if (editingRoomId === null) return;
+    var room = null;
+    for (var i = 0; i < rooms.length; i++) {
+      if (rooms[i].id === editingRoomId) { room = rooms[i]; break; }
+    }
+    if (room) {
+      pushHistory();
+      room.label = document.getElementById('editLabel').value.trim() || (room.id + '번');
+      room.code = document.getElementById('editLabelCode').value.trim();
+      if (document.getElementById('editTypeDoor').checked) {
+        room.type = 'door';
+      } else if (document.getElementById('editTypeFacility').checked) {
+        room.type = 'facility';
+      } else if (document.getElementById('editTypeCounter').checked) {
+        room.type = 'counter';
+      } else {
+        room.type = 'room';
+      }
+      room.faceSide = document.getElementById('editFaceLeft').checked ? 'left' : 'right';
+    }
+    document.getElementById('editWrap').classList.remove('show');
+    editingRoomId = null;
+    renderRooms();
+  });
+
+  document.getElementById('editCancel').addEventListener('click', function() {
+    document.getElementById('editWrap').classList.remove('show');
+    editingRoomId = null;
+  });
+
+  (function setupEditRotation() {
+    var rotValue = document.getElementById('editRotationValue');
+    var btnPrev = document.getElementById('editRotationPrev');
+    var btnNext = document.getElementById('editRotationNext');
+    function updateRotation(delta) {
+      if (editingRoomId == null) return;
+      var room = getRoomById(editingRoomId);
+      if (!room) return;
+      pushHistory();
+      room.rotationDeg = ((room.rotationDeg || 0) + delta + 360) % 360;
+      if (rotValue) rotValue.textContent = room.rotationDeg + '°';
+      renderRooms();
+    }
+    if (btnPrev) btnPrev.addEventListener('click', function() { updateRotation(-15); });
+    if (btnNext) btnNext.addEventListener('click', function() { updateRotation(15); });
+
+    /* 앞뒤 순서 (zOrder) */
+    var zValEl = document.getElementById('editZValue');
+    function updateZOrder(delta) {
+      if (editingRoomId == null) return;
+      var room = getRoomById(editingRoomId);
+      if (!room) return;
+      pushHistory();
+      room.zOrder = (room.zOrder || 0) + delta;
+      if (zValEl) zValEl.textContent = room.zOrder !== 0 ? (room.zOrder > 0 ? '+' + room.zOrder : room.zOrder) : '';
+      renderRooms();
+    }
+    document.getElementById('editZBack').addEventListener('click', function() { updateZOrder(-1); });
+    document.getElementById('editZFront').addEventListener('click', function() { updateZOrder(1); });
+  })();
+
+  document.getElementById('kioskFlipBtn').addEventListener('click', function() {
+    if (editingKioskIndex === null) return;
+    if (kiosks[editingKioskIndex]) {
+      pushHistory();
+      kiosks[editingKioskIndex].flipped = !kiosks[editingKioskIndex].flipped;
+      renderKiosks();
+    }
+  });
+  document.getElementById('kioskEditClose').addEventListener('click', function() {
+    document.getElementById('kioskEditWrap').classList.remove('show');
+    editingKioskIndex = null;
+  });
+  document.getElementById('kioskEditWrap').addEventListener('click', function(e) {
+    if (e.target === document.getElementById('kioskEditWrap')) {
+      document.getElementById('kioskEditWrap').classList.remove('show');
+      editingKioskIndex = null;
+    }
+  });
+
+  // 키오스크 크기 조절 슬라이더
+  (function setupKioskScale() {
+    var slider = document.getElementById('kioskScaleInput');
+    var label = document.getElementById('kioskScaleLabel');
+    if (!slider || !label) return;
+
+    function refreshFromModel() {
+      if (editingKioskIndex == null || !kiosks[editingKioskIndex]) return;
+      var s = kiosks[editingKioskIndex].scale || 1;
+      var percent = Math.round(s * 100);
+      slider.value = String(percent);
+      label.textContent = percent + '%';
+    }
+
+    var sliderDragPushed = false;
+    slider.addEventListener('mousedown', function() { sliderDragPushed = false; });
+    slider.addEventListener('input', function() {
+      var val = parseInt(slider.value, 10);
+      if (isNaN(val)) return;
+      label.textContent = val + '%';
+      if (editingKioskIndex == null || !kiosks[editingKioskIndex]) return;
+      if (!sliderDragPushed) { pushHistory(); sliderDragPushed = true; }
+      kiosks[editingKioskIndex].scale = val / 100;
+      renderKiosks();
+    });
+
+    // 처음 로드 시와 이후 편집 인덱스 변경 시 반영
+    refreshFromModel();
+
+    // 편집 인덱스가 바뀔 때마다 호출되도록, 전역에서 수동으로 호출
+    window.__refreshKioskScaleUI = refreshFromModel;
+  })();
+
+  function onEditKeydown(e) {
+    if (e.key === 'Enter') document.getElementById('editOk').click();
+    if (e.key === 'Escape') document.getElementById('editCancel').click();
+  }
+  document.getElementById('editLabel').addEventListener('keydown', onEditKeydown);
+  document.getElementById('editLabelCode').addEventListener('keydown', onEditKeydown);
+
+  // room_id 매핑 UI (각 방마다 "N번 룸 [입력칸]" 형태)
+  loadRoomIdMap();
+  (function setupRoomMapUI() {
+    var btn = document.getElementById('btnRoomMap');
+    var wrap = document.getElementById('roomMapWrap');
+    var listEl = document.getElementById('roomMapList');
+    var status = document.getElementById('roomMapStatus');
+    var toolbarHint = document.getElementById('roomMapToolbarHint');
+    function refreshStatus() {
+      var count = Object.keys(roomIdMap).length;
+      var msg = count ? ('저장된 매핑: ' + count + '개 (SVG 저장 시 room_id 자동 포함)') : '저장된 매핑이 없습니다.';
+      if (status) status.textContent = msg;
+      if (toolbarHint) {
+        toolbarHint.textContent = count ? ('✓ 매핑 ' + count + '개 적용됨') : '';
+      }
+    }
+    function buildRoomMapRows() {
+      if (!listEl) return;
+      listEl.innerHTML = '';
+      var list = rooms.slice().sort(function(a, b) { return a.id - b.id; });
+      if (list.length === 0) {
+        listEl.innerHTML = '<p style="font-size:13px; color:#888; padding:12px 0;">방이 없습니다. 먼저 바닥 위에 방을 만드세요.</p>';
+        return;
+      }
+      for (var i = 0; i < list.length; i++) {
+        var room = list[i];
+        if (room.type === 'counter' || room.type === 'facility' || room.type === 'door') continue;
+        var roomNo = getRoomNumberFromLabel(room.label, room.id);
+        var label = (room.label || room.id + '번') + ' 룸';
+        var row = document.createElement('div');
+        row.style.cssText = 'display:flex; align-items:center; gap:10px; margin-bottom:8px;';
+        var lab = document.createElement('label');
+        lab.textContent = label;
+        lab.style.cssText = 'flex:0 0 90px; font-size:13px;';
+        var inp = document.createElement('input');
+        inp.type = 'text';
+        inp.placeholder = '어드민 방 번호';
+        inp.setAttribute('data-room-id', String(room.id));
+        inp.setAttribute('data-room-no', String(roomNo));
+        inp.value = roomIdMap[roomNo] || '';
+        inp.style.cssText = 'flex:1; padding:8px 12px; border:1px solid #cfcfcf; border-radius:8px; font-size:13px;';
+        row.appendChild(lab);
+        row.appendChild(inp);
+        listEl.appendChild(row);
+      }
+    }
+    function saveFromInputs() {
+      roomIdMap = Object.create(null);
+      var inputs = listEl.querySelectorAll('input[data-room-no]');
+      for (var j = 0; j < inputs.length; j++) {
+        var inp = inputs[j];
+        var no = inp.getAttribute('data-room-no');
+        var val = inp.value.trim();
+        if (no && val) roomIdMap[no] = val;
+      }
+    }
+    if (btn && wrap && listEl) {
+      btn.addEventListener('click', function() {
+        buildRoomMapRows();
+        refreshStatus();
+        wrap.classList.add('show');
+        var firstInput = listEl.querySelector('input');
+        if (firstInput) firstInput.focus();
+      });
+      document.getElementById('roomMapClose').addEventListener('click', function() {
+        wrap.classList.remove('show');
+      });
+      wrap.addEventListener('click', function(e) {
+        if (e.target === wrap) wrap.classList.remove('show');
+      });
+      document.getElementById('roomMapClear').addEventListener('click', function() {
+        roomIdMap = Object.create(null);
+        saveRoomIdMap();
+        buildRoomMapRows();
+        refreshStatus();
+      });
+      document.getElementById('roomMapSave').addEventListener('click', function() {
+        saveFromInputs();
+        saveRoomIdMap();
+        refreshStatus();
+      });
+      refreshStatus();
+    }
+  })();
+
+  var btnUndo = document.getElementById('btnUndo');
+  if (btnUndo) {
+    btnUndo.addEventListener('click', function() {
+      undoLast();
+    });
+  }
+
+  function rotateAllContent(cwDir, angleDeg) {
+    if (rooms.length === 0 && floorRegions.length === 0) return;
+    pushHistory();
+    /* 전체 콘텐츠 격자 bounding box 중심을 pivot으로 사용 */
+    var allC = [], allR = [];
+    for (var i = 0; i < rooms.length; i++) {
+      allC.push(rooms[i].c0, rooms[i].c1);
+      allR.push(rooms[i].r0, rooms[i].r1);
+    }
+    for (var i = 0; i < floorRegions.length; i++) {
+      var fr = floorRegions[i];
+      if (fr.type === 'polygon' && fr.points) {
+        for (var j = 0; j < fr.points.length; j++) { allC.push(fr.points[j].vc); allR.push(fr.points[j].vr); }
+      } else { allC.push(fr.c0, fr.c1); allR.push(fr.r0, fr.r1); }
+    }
+    if (allC.length === 0) return;
+    var pivotC = (Math.min.apply(null, allC) + Math.max.apply(null, allC)) / 2;
+    var pivotR = (Math.min.apply(null, allR) + Math.max.apply(null, allR)) / 2;
+
+    /* 90° 정수 격자 회전 */
+    function rc90(c, r) { var dc = c - pivotC, dr = r - pivotR; return cwDir === 1 ? pivotC + dr : pivotC - dr; }
+    function rr90(c, r) { var dc = c - pivotC, dr = r - pivotR; return cwDir === 1 ? pivotR - dc : pivotR + dc; }
+
+    for (var i = 0; i < rooms.length; i++) {
+      var rm = rooms[i];
+      var cs = [rc90(rm.c0,rm.r0), rc90(rm.c1,rm.r0), rc90(rm.c0,rm.r1), rc90(rm.c1,rm.r1)];
+      var rs = [rr90(rm.c0,rm.r0), rr90(rm.c1,rm.r0), rr90(rm.c0,rm.r1), rr90(rm.c1,rm.r1)];
+      rm.c0 = Math.round(Math.min.apply(null,cs)); rm.c1 = Math.round(Math.max.apply(null,cs));
+      rm.r0 = Math.round(Math.min.apply(null,rs)); rm.r1 = Math.round(Math.max.apply(null,rs));
+      rm.rotationDeg = ((rm.rotationDeg || 0) + cwDir * 90 + 360) % 360;
+    }
+    for (var i = 0; i < floorRegions.length; i++) {
+      var fr = floorRegions[i];
+      if (fr.type === 'polygon' && fr.points) {
+        fr.points = fr.points.map(function(p) { return { vc: rc90(p.vc, p.vr), vr: rr90(p.vc, p.vr) }; });
+      } else {
+        var cs = [rc90(fr.c0,fr.r0), rc90(fr.c1,fr.r0), rc90(fr.c0,fr.r1), rc90(fr.c1,fr.r1)];
+        var rs = [rr90(fr.c0,fr.r0), rr90(fr.c1,fr.r0), rr90(fr.c0,fr.r1), rr90(fr.c1,fr.r1)];
+        fr.c0 = Math.round(Math.min.apply(null,cs)); fr.c1 = Math.round(Math.max.apply(null,cs));
+        fr.r0 = Math.round(Math.min.apply(null,rs)); fr.r1 = Math.round(Math.max.apply(null,rs));
+      }
+    }
+    for (var i = 0; i < kiosks.length; i++) {
+      var kk = kiosks[i];
+      var gc = ((kk.x - CENTER_X) / HW + (kk.y - CENTER_Y) / HH) / 2;
+      var gr = ((kk.y - CENTER_Y) / HH - (kk.x - CENTER_X) / HW) / 2;
+      var ns = gridToScreen(rc90(gc, gr), rr90(gc, gr));
+      kk.x = ns.x; kk.y = ns.y;
+    }
+
+    selectedRoomId = null; selectedKioskIndex = null; selectedPenFloorId = null;
+    renderFloors(); renderRooms(); renderKiosks(); buildGrid();
+  }
+
+  var btnR90 = document.getElementById('btnRotateCW90');
+  if (btnR90) btnR90.addEventListener('click', function() { rotateAllContent(1, 90); });
+  var btnL90 = document.getElementById('btnRotateCCW90');
+  if (btnL90) btnL90.addEventListener('click', function() { rotateAllContent(-1, 90); });
+
+  var btnEraser = document.getElementById('btnEraser');
+  if (btnEraser) {
+    btnEraser.addEventListener('click', function() {
+      eraserMode = !eraserMode;
+      if (eraserMode) {
+        penMode = false;
+        penPoints = []; penCursorPos = null;
+        var btnPen = document.getElementById('btnPen');
+        if (btnPen) btnPen.classList.remove('pen-on');
+      }
+      btnEraser.classList.toggle('eraser-on', eraserMode);
+      btnEraser.title = eraserMode ? '지우개 켜짐 – 바닥을 드래그하면 지워짐. 다시 클릭하면 끔' : '지우개: 켜면 바닥을 드래그해서 지울 수 있음';
+      dragStart = null;
+      dragCurrent = null;
+      renderFloorPreview();
+      renderPenPreview();
+      if (wrap) wrap.style.cursor = eraserMode ? 'crosshair' : '';
+      if (svg) svg.style.cursor = eraserMode ? 'crosshair' : '';
+    });
+  }
+
+  var btnPen = document.getElementById('btnPen');
+  if (btnPen) {
+    btnPen.addEventListener('click', function() {
+      penMode = !penMode;
+      if (penMode) {
+        eraserMode = false;
+        var btnE = document.getElementById('btnEraser');
+        if (btnE) btnE.classList.remove('eraser-on');
+        dragStart = null;
+        dragCurrent = null;
+        renderFloorPreview();
+      } else {
+        penPoints = []; penCursorPos = null;
+      }
+      btnPen.classList.toggle('pen-on', penMode);
+      btnPen.title = penMode ? '펜 켜짐 – 그리드 점을 클릭해 연결. 첫 점을 다시 클릭하면 닫기' : '펜: 그리드 점을 클릭해 연결하면 바닥 영역 생성';
+      renderPenPreview();
+      if (wrap) wrap.style.cursor = penMode ? 'crosshair' : '';
+      if (svg) svg.style.cursor = penMode ? 'crosshair' : '';
+    });
+  }
+
+  var btnLinkRooms = document.getElementById('btnLinkRooms');
+  if (btnLinkRooms) {
+    btnLinkRooms.addEventListener('click', function() {
+      linkPickMode = !linkPickMode;
+      btnLinkRooms.classList.toggle('primary', linkPickMode);
+      linkPickFirstRoomId = null;
+      var eh = document.getElementById('extraHint');
+      if (!linkPickMode && eh) eh.textContent = '';
+      if (linkPickMode && eh) eh.textContent = '연결방: 방을 클릭해 연결, 화살표 클릭해 삭제';
+    });
+  }
+
+  var shadeLightSelect = document.getElementById('shadeLightSelect');
+  if (shadeLightSelect) {
+    shadeLightSelect.addEventListener('change', function() {
+      sideShadeLightFrom = shadeLightSelect.value === 'left' ? 'left' : 'right';
+      renderRooms();
+    });
+    syncShadeLightSelectUI();
+  }
+
+  (function setupZoomAndFont() {
+    var ZOOM_MIN = 0.4, ZOOM_MAX = 1.5, ZOOM_STEP = 0.15;
+    var FONT_MIN = 8, FONT_MAX = 24, FONT_STEP = 2;
+    function updateFontHint() {
+      var h = document.getElementById('fontHint');
+      if (h) h.textContent = roomLabelFontSizeTop + 'px';
+    }
+    var btnZoomIn = document.getElementById('btnZoomIn');
+    if (btnZoomIn) {
+      btnZoomIn.addEventListener('click', function() {
+        zoomLevel = Math.min(ZOOM_MAX, zoomLevel + ZOOM_STEP);
+        applyZoom();
+      });
+    }
+    var btnZoomOut = document.getElementById('btnZoomOut');
+    if (btnZoomOut) {
+      btnZoomOut.addEventListener('click', function() {
+        zoomLevel = Math.max(ZOOM_MIN, zoomLevel - ZOOM_STEP);
+        applyZoom();
+      });
+    }
+    var btnFontBig = document.getElementById('btnFontBig');
+    if (btnFontBig) {
+      btnFontBig.addEventListener('click', function() {
+        roomLabelFontSizeTop = Math.min(FONT_MAX, roomLabelFontSizeTop + FONT_STEP);
+        roomLabelFontSizeFace = Math.min(FONT_MAX, roomLabelFontSizeFace + FONT_STEP);
+        updateFontHint();
+        renderRooms();
+      });
+    }
+    var btnFontSmall = document.getElementById('btnFontSmall');
+    if (btnFontSmall) {
+      btnFontSmall.addEventListener('click', function() {
+        roomLabelFontSizeTop = Math.max(FONT_MIN, roomLabelFontSizeTop - FONT_STEP);
+        roomLabelFontSizeFace = Math.max(FONT_MIN, roomLabelFontSizeFace - FONT_STEP);
+        updateFontHint();
+        renderRooms();
+      });
+    }
+    updateFontHint();
+  })();
+
+  (function setupPlanSaveLoad() {
+    var STORAGE_LIST_KEY = 'floorPlan_list';
+    var STORAGE_PREFIX = 'floorPlan_';
+    var inputPlanName = document.getElementById('planFilename');
+    var btnSave = document.getElementById('btnSavePlan');
+    var btnLoad = document.getElementById('btnLoadPlan');
+    var saveHint = document.getElementById('savePlanHint');
+    var modal = document.getElementById('loadPlanModal');
+    var listEl = document.getElementById('loadPlanList');
+    var btnClose = document.getElementById('loadPlanClose');
+
+    function getSavedList() {
+      try {
+        var raw = localStorage.getItem(STORAGE_LIST_KEY);
+        return raw ? JSON.parse(raw) : [];
+      } catch (e) { return []; }
+    }
+    function setSavedList(arr) {
+      try {
+        localStorage.setItem(STORAGE_LIST_KEY, JSON.stringify(arr));
+      } catch (e) {}
+    }
+
+    if (btnSave) {
+      btnSave.addEventListener('click', function() {
+        var name = (inputPlanName && inputPlanName.value.trim()) || '이름없음';
+        var state = getStateForSave();
+        state.planName = name;
+        try {
+          var key = STORAGE_PREFIX + name;
+          localStorage.setItem(key, JSON.stringify(state));
+          var list = getSavedList();
+          if (list.indexOf(name) === -1) list.push(name);
+          setSavedList(list);
+          if (saveHint) {
+            saveHint.textContent = '저장되었습니다.';
+            setTimeout(function() { saveHint.textContent = ''; }, 2000);
+          }
+        } catch (e) {
+          if (saveHint) saveHint.textContent = '저장 실패 (용량 제한 등)';
+        }
+      });
+    }
+
+    function openLoadModal() {
+      var list = getSavedList();
+      if (!listEl) return;
+      listEl.innerHTML = '';
+      if (list.length === 0) {
+        listEl.innerHTML = '<li class="empty-hint">저장된 도면이 없습니다. 매장명을 입력하고 "도면 저장"을 눌러 보관하세요.</li>';
+      } else {
+        for (var i = 0; i < list.length; i++) {
+          (function(planName) {
+            var li = document.createElement('li');
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.textContent = planName;
+            btn.addEventListener('click', function() {
+              try {
+                var raw = localStorage.getItem(STORAGE_PREFIX + planName);
+                if (!raw) return;
+                var data = JSON.parse(raw);
+                restoreState(data);
+                if (inputPlanName) inputPlanName.value = data.planName || planName;
+                modal.setAttribute('aria-hidden', 'true');
+              } catch (e) {
+                if (saveHint) saveHint.textContent = '불러오기 실패';
+              }
+            });
+            li.appendChild(btn);
+            listEl.appendChild(li);
+          })(list[i]);
+        }
+      }
+      modal.setAttribute('aria-hidden', 'false');
+    }
+
+    if (btnLoad) btnLoad.addEventListener('click', openLoadModal);
+    if (btnClose) btnClose.addEventListener('click', function() { modal.setAttribute('aria-hidden', 'true'); });
+    if (modal) {
+      modal.addEventListener('click', function(e) {
+        if (e.target === modal) modal.setAttribute('aria-hidden', 'true');
+      });
+    }
+  })();
+
+  function sanitizeSvgId(s) {
+    var t = String(s || '').trim().replace(/\s+/g, '_').replace(/[^\w\u3131-\u318E\uAC00-\uD7A3]+/g, '_');
+    if (!t) t = 'object';
+    if (t[0] !== '_') t = '_' + t;
+    return t;
+  }
+
+  /* 현재 전역 데이터(rooms, floorRegions, kiosks)에 회전을 직접 적용.
+     pushHistory/render 없이 데이터만 변환. 복원은 호출자 책임. */
+  function applyRotationToData(totalDeg) {
+    if (totalDeg === 0) return;
+    var allC = [], allR = [];
+    for (var i = 0; i < rooms.length; i++) { allC.push(rooms[i].c0, rooms[i].c1); allR.push(rooms[i].r0, rooms[i].r1); }
+    for (var i = 0; i < floorRegions.length; i++) {
+      var fr = floorRegions[i];
+      if (fr.type === 'polygon' && fr.points) {
+        for (var j = 0; j < fr.points.length; j++) { allC.push(fr.points[j].vc); allR.push(fr.points[j].vr); }
+      } else if (fr.c0 !== undefined) { allC.push(fr.c0, fr.c1); allR.push(fr.r0, fr.r1); }
+    }
+    if (allC.length === 0) return;
+    var pivC = (Math.min.apply(null, allC) + Math.max.apply(null, allC)) / 2;
+    var pivR = (Math.min.apply(null, allR) + Math.max.apply(null, allR)) / 2;
+    var cwDir = totalDeg >= 0 ? 1 : -1;
+    var absAngle = Math.abs(totalDeg);
+    var rad = cwDir * absAngle * Math.PI / 180;
+    var cosA = Math.cos(rad), sinA = Math.sin(rad);
+    function rcA(c, r) { var dc = c - pivC, dr = r - pivR; return pivC + dc * cosA - dr * sinA; }
+    function rrA(c, r) { var dc = c - pivC, dr = r - pivR; return pivR + dc * sinA + dr * cosA; }
+    for (var i = 0; i < rooms.length; i++) {
+      var rm = rooms[i];
+      /* 중심만 회전, 크기 보존 → 바운딩 박스 팽창 방지, 바닥 밖 이탈 방지 */
+      var cc = (rm.c0 + rm.c1) / 2, cr = (rm.r0 + rm.r1) / 2;
+      var hw = (rm.c1 - rm.c0) / 2, hh_ = (rm.r1 - rm.r0) / 2;
+      var nc = rcA(cc, cr), nr = rrA(cc, cr);
+      rm.c0 = nc - hw; rm.c1 = nc + hw;
+      rm.r0 = nr - hh_; rm.r1 = nr + hh_;
+      /* rotationDeg 변경 안 함 — 좌표 이동만으로 시점 변경 */
+    }
+    for (var i = 0; i < floorRegions.length; i++) {
+      var fr = floorRegions[i];
+      if (fr.type === 'polygon' && fr.points) {
+        fr.points = fr.points.map(function(p) { return { vc: rcA(p.vc, p.vr), vr: rrA(p.vc, p.vr) }; });
+      } else if (fr.c0 !== undefined) {
+        var pts2 = [{ vc: fr.c0, vr: fr.r0 }, { vc: fr.c1, vr: fr.r0 }, { vc: fr.c1, vr: fr.r1 }, { vc: fr.c0, vr: fr.r1 }];
+        fr.type = 'polygon';
+        fr.points = pts2.map(function(p) { return { vc: rcA(p.vc, p.vr), vr: rrA(p.vc, p.vr) }; });
+        delete fr.c0; delete fr.c1; delete fr.r0; delete fr.r1;
+      }
+    }
+    for (var i = 0; i < kiosks.length; i++) {
+      var kk = kiosks[i];
+      var gc = ((kk.x - CENTER_X) / HW + (kk.y - CENTER_Y) / HH) / 2;
+      var gr = ((kk.y - CENTER_Y) / HH - (kk.x - CENTER_X) / HW) / 2;
+      var ns = gridToScreen(rcA(gc, gr), rrA(gc, gr));
+      kk.x = ns.x; kk.y = ns.y;
+    }
+  }
+
+  /* export 화면좌표 회전 헬퍼 */
+  function _erp(x, y) {
+    if (!_expRot) return { x: x, y: y };
+    return rotatePointOnIsoPlane(_expRot.cx, _expRot.cy, x, y, _expRot.deg);
+  }
+  function _erpPathD(d) {
+    if (!_expRot) return d;
+    var tokens = d.match(/[A-Za-z]|[-]?[\d.]+/g);
+    if (!tokens) return d;
+    var nd = [], i2 = 0;
+    while (i2 < tokens.length) {
+      if (/^[A-Za-z]$/.test(tokens[i2])) { nd.push(tokens[i2]); i2++; }
+      else {
+        var px = parseFloat(tokens[i2]), py = parseFloat(tokens[i2 + 1] || '0');
+        var rr = _erp(px, py);
+        nd.push(rr.x.toFixed(2)); nd.push(rr.y.toFixed(2));
+        i2 += 2;
+      }
+    }
+    return nd.join(' ');
+  }
+
+  function buildExportSvgElement() {
+    var PAD = 48;
+    var bMinX = Infinity, bMinY = Infinity, bMaxX = -Infinity, bMaxY = -Infinity;
+    function expandBounds(x, y) {
+      if (x < bMinX) bMinX = x; if (y < bMinY) bMinY = y;
+      if (x > bMaxX) bMaxX = x; if (y > bMaxY) bMaxY = y;
+    }
+    /* bounds: getRoomExportCorners 사용 (_expRot 포함된 좌표) */
+    for (var bi = 0; bi < rooms.length; bi++) {
+      var bCorners = getRoomExportCorners(rooms[bi]);
+      var bPts = bCorners.top.concat(bCorners.base);
+      for (var bj = 0; bj < bPts.length; bj++) expandBounds(bPts[bj].x, bPts[bj].y);
+    }
+    for (var bfi = 0; bfi < floorRegions.length; bfi++) {
+      var bfr = floorRegions[bfi];
+      if (bfr.type === 'polygon' && bfr.points) {
+        for (var bpi = 0; bpi < bfr.points.length; bpi++) {
+          var bvc = (typeof bfr.points[bpi].vc !== 'undefined') ? bfr.points[bpi].vc : (bfr.points[bpi].col || bfr.points[bpi].c);
+          var bvr = (typeof bfr.points[bpi].vr !== 'undefined') ? bfr.points[bpi].vr : (bfr.points[bpi].row || bfr.points[bpi].r);
+          var bfp = _erp(gridToScreen(bvc, bvr).x, gridToScreen(bvc, bvr).y);
+          expandBounds(bfp.x, bfp.y);
+        }
+      } else if (bfr.c0 !== undefined) {
+        var bfcs = [
+          screenCellDiamondTop(bfr.c0, bfr.r0), screenCellDiamondRight(bfr.c1, bfr.r0),
+          screenCellDiamondBottom(bfr.c1, bfr.r1), screenCellDiamondLeft(bfr.c0, bfr.r1)
+        ];
+        for (var bfc = 0; bfc < bfcs.length; bfc++) {
+          var rbf = _erp(bfcs[bfc].x, bfcs[bfc].y);
+          expandBounds(rbf.x, rbf.y);
+        }
+      }
+    }
+    if (bMinX === Infinity) { bMinX = 0; bMinY = 0; bMaxX = 900; bMaxY = 600; }
+    bMinY -= ROOM_HEIGHT;
+    var exportSvg = document.createElementNS(SVG_NS, 'svg');
+    exportSvg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    exportSvg.setAttribute('id', '_레이어_2');
+    exportSvg.setAttribute('data-name', '레이어 2');
+
+    var rootLayer = document.createElementNS(SVG_NS, 'g');
+    rootLayer.setAttribute('id', '_레이어_1-2');
+    rootLayer.setAttribute('data-name', '레이어 1');
+
+    /* 바닥 — 모든 바닥 영역을 하나의 path로 합침 (AI에서 한 개체) */
+    var floorGroup = document.createElementNS(SVG_NS, 'g');
+    floorGroup.setAttribute('id', 'floorLayer');
+    var floorPathD = '';
+    if (!_expRot) {
+      /* 0°: merged path (rect 바닥 합침) + polygon 바닥 추가 */
+      floorPathD = buildFloorMergedPathD({ mergePolygonAsCells: false });
+    }
+    for (var efi = 0; efi < floorRegions.length; efi++) {
+      var efr = floorRegions[efi];
+      var efScreenPts = [];
+      if (efr.type === 'polygon' && efr.points && efr.points.length >= 3) {
+        efScreenPts = efr.points.map(function(p) {
+          var vc = (typeof p.vc !== 'undefined') ? p.vc : (p.col || p.c);
+          var vr = (typeof p.vr !== 'undefined') ? p.vr : (p.row || p.r);
+          var s = gridToScreen(vc, vr);
+          return _erp(s.x, s.y);
+        });
+      } else if (efr.c0 !== undefined && _expRot) {
+        /* 회전 시: rect → 4코너 다이아몬드 */
+        efScreenPts = [
+          screenCellDiamondTop(efr.c0, efr.r0),
+          screenCellDiamondRight(efr.c1, efr.r0),
+          screenCellDiamondBottom(efr.c1, efr.r1),
+          screenCellDiamondLeft(efr.c0, efr.r1)
+        ].map(function(p) { return _erp(p.x, p.y); });
+      }
+      if (efScreenPts.length >= 3) {
+        floorPathD += ' M ' + efScreenPts[0].x.toFixed(2) + ' ' + efScreenPts[0].y.toFixed(2);
+        for (var epi = 1; epi < efScreenPts.length; epi++) {
+          floorPathD += ' L ' + efScreenPts[epi].x.toFixed(2) + ' ' + efScreenPts[epi].y.toFixed(2);
+        }
+        floorPathD += ' Z';
+      }
+    }
+    if (floorPathD.trim()) {
+      var floorPath = document.createElementNS(SVG_NS, 'path');
+      floorPath.setAttribute('d', floorPathD.trim());
+      floorPath.setAttribute('fill', '#d2d9e1');
+      floorPath.setAttribute('stroke', 'none');
+      floorGroup.appendChild(floorPath);
+    }
+    rootLayer.appendChild(floorGroup);
+
+    /* 방 (AI 호환 렌더) */
+    var roomGroup = document.createElementNS(SVG_NS, 'g');
+    roomGroup.setAttribute('id', 'roomLayer');
+    /* 회전된 좌표 기준 깊이 정렬 + 방 데이터 zOrder */
+    var roomsExport = rooms.slice().sort(function(a, b) {
+      var ca = getRoomExportCorners(a), cb = getRoomExportCorners(b);
+      var ya = Math.max.apply(null, ca.base.map(function(p) { return p.y; }));
+      var yb = Math.max.apply(null, cb.base.map(function(p) { return p.y; }));
+      var za = (a.zOrder || 0) * 9999;
+      var zb = (b.zOrder || 0) * 9999;
+      return (ya + za) - (yb + zb);
+    });
+    for (var j = 0; j < roomsExport.length; j++) {
+      var room = roomsExport[j];
+      var el = drawRoomBoxForExport(room);
+      el.setAttribute('data-room-label', room.label || '');
+      el.setAttribute('data-room-code', room.code || '');
+      var roomName = (room.label || (room.id + '번')) + ' 방';
+      el.setAttribute('id', sanitizeSvgId(roomName));
+      el.setAttribute('data-name', roomName);
+      var bodyPathEl = el.querySelector('path');
+      if (bodyPathEl) { bodyPathEl.setAttribute('id', sanitizeSvgId(roomName)); bodyPathEl.setAttribute('data-name', roomName); }
+      if (!room.type || room.type === 'room') {
+        var roomNo = getRoomNumberFromLabel(room.label, room.id);
+        var adminRoomId = roomIdMap[roomNo];
+        if (adminRoomId) {
+          var roomIdAttr = 'r' + String(adminRoomId).trim();
+          el.setAttribute('room_id', roomIdAttr);
+          var rNodes = el.querySelectorAll('path,polygon,text');
+          for (var ni = 0; ni < rNodes.length; ni++) rNodes[ni].setAttribute('room_id', roomIdAttr);
+        }
+      }
+      roomGroup.appendChild(el);
+    }
+    rootLayer.appendChild(roomGroup);
+
+    /* 연결방 화살표 */
+    if (roomLinks && roomLinks.length) {
+      var linkGroup = document.createElementNS(SVG_NS, 'g');
+      linkGroup.setAttribute('id', 'linkLayer');
+      for (var li = 0; li < roomLinks.length; li++) {
+        var lk = roomLinks[li];
+        var ra = getRoomById(lk.a), rb = getRoomById(lk.b);
+        if (!ra || !rb) continue;
+        var pa = getRoomTopFaceCenter(ra), pb = getRoomTopFaceCenter(rb);
+        var exPoints = buildLinkConnectorPolygonPoints(pa, pb);
+        if (!exPoints) continue;
+        var linkPoly = document.createElementNS(SVG_NS, 'polygon');
+        linkPoly.setAttribute('points', exPoints);
+        linkPoly.setAttribute('fill', '#dc0030');
+        linkPoly.setAttribute('stroke', 'none');
+        linkGroup.appendChild(linkPoly);
+      }
+      rootLayer.appendChild(linkGroup);
+    }
+
+    /* 키오스크 */
+    var kioskGroup = document.createElementNS(SVG_NS, 'g');
+    kioskGroup.setAttribute('id', 'kioskLayer');
+    for (var ki = 0; ki < kiosks.length; ki++) {
+      var kp = kiosks[ki];
+      kioskGroup.appendChild(createKioskGroup(kp.x, kp.y, kp.flipped, { includeOutline: false, scale: kp.scale || 1 }));
+    }
+    rootLayer.appendChild(kioskGroup);
+
+    var vx = Math.floor(bMinX - PAD), vy = Math.floor(bMinY - PAD);
+    var vw = Math.ceil(bMaxX - bMinX + PAD * 2), vh = Math.ceil(bMaxY - bMinY + PAD * 2);
+    exportSvg.setAttribute('width', String(vw));
+    exportSvg.setAttribute('height', String(vh));
+    exportSvg.setAttribute('viewBox', vx + ' ' + vy + ' ' + vw + ' ' + vh);
+    exportSvg.appendChild(rootLayer);
+    return exportSvg;
+  }
+
+  document.getElementById('btnExport').addEventListener('click', function() {
+    var floorPreview = floorLayer.querySelector('g[data-preview="floor"]');
+    if (floorPreview) floorPreview.remove();
+
+    var modal = document.getElementById('exportModal');
+    var slider = document.getElementById('exportAngleSlider');
+    var numIn = document.getElementById('exportAngleInput');
+    var previewArea = document.getElementById('exportPreviewArea');
+
+    slider.value = '0'; numIn.value = '0';
+    modal.setAttribute('aria-hidden', 'false');
+    modal.classList.add('open');
+
+    /* export 전용 빛 방향 */
+    var exportLightDir = sideShadeLightFrom; /* 현재 캔버스 설정으로 초기화 */
+    var btnLL = document.getElementById('exportLightLeft');
+    var btnLR = document.getElementById('exportLightRight');
+    function updateLightBtns() {
+      btnLL.style.background = exportLightDir === 'left' ? '#3fc3b0' : '#fff';
+      btnLL.style.color = exportLightDir === 'left' ? '#fff' : '#555';
+      btnLR.style.background = exportLightDir === 'right' ? '#3fc3b0' : '#fff';
+      btnLR.style.color = exportLightDir === 'right' ? '#fff' : '#555';
+    }
+    btnLL.onclick = function() { exportLightDir = 'left'; updateLightBtns(); updatePreview(); };
+    btnLR.onclick = function() { exportLightDir = 'right'; updateLightBtns(); updatePreview(); };
+
+    /* 렌더 시점에 _expRot + 빛 방향 설정 */
+    function buildRotatedSvg(totalDeg) {
+      _expRot = (totalDeg !== 0) ? { deg: totalDeg, cx: CENTER_X, cy: CENTER_Y } : null;
+      _expCodeFaces = codeFaceOverrides;
+      var origLight = sideShadeLightFrom;
+      sideShadeLightFrom = exportLightDir;
+      var svgEl = buildExportSvgElement();
+      sideShadeLightFrom = origLight;
+      _expRot = null;
+      _expCodeFaces = null;
+      return svgEl;
+    }
+
+    function updatePreview() {
+      var angle = Math.round((parseFloat(slider.value) || 0) / 30) * 30;
+      slider.value = String(angle); numIn.value = String(angle);
+      var svgEl = buildRotatedSvg(angle);
+      previewArea.innerHTML = '';
+      previewArea.appendChild(svgEl);
+    }
+    updatePreview();
+
+    slider.oninput = function() { numIn.value = slider.value; updatePreview(); };
+    numIn.oninput = function() {
+      var v = Math.round(Math.max(-180, Math.min(180, parseFloat(numIn.value) || 0)) / 30) * 30;
+      slider.value = String(v); numIn.value = String(v); updatePreview();
+    };
+
+    /* 개체 편집: 프리뷰 내 방 클릭 → 편집 패널 */
+    var exportOverrides = {}; /* { roomId: { label, code } } */
+    var editPanel = document.getElementById('exportEditPanel');
+    var editTitle = document.getElementById('exportEditTitle');
+    var editLabel = document.getElementById('exportEditLabel');
+    var editCode = document.getElementById('exportEditCode');
+    var editingRoomId = null;
+
+    previewArea.addEventListener('click', function(ev) {
+      var rg = ev.target.closest && ev.target.closest('.room-group');
+      if (!rg) { editPanel.style.display = 'none'; editingRoomId = null; return; }
+      var rid = parseInt(rg.getAttribute('data-room-id'), 10);
+      var rm = getRoomById(rid);
+      if (!rm) return;
+      editingRoomId = rid;
+      var ov = exportOverrides[rid] || {};
+      editTitle.textContent = (rm.label || (rm.id + '번')) + ' 방';
+      editLabel.value = ov.label !== undefined ? ov.label : (rm.label || (rm.id + '번'));
+      editCode.value = ov.code !== undefined ? ov.code : (rm.code || '');
+      editPanel.style.display = 'block';
+      updateCodeFaceBtns();
+    });
+    document.getElementById('exportEditClose').onclick = function() {
+      editPanel.style.display = 'none'; editingRoomId = null;
+    };
+    function applyOverrides() {
+      if (editingRoomId == null) return;
+      if (!exportOverrides[editingRoomId]) exportOverrides[editingRoomId] = {};
+      exportOverrides[editingRoomId].label = editLabel.value;
+      exportOverrides[editingRoomId].code = editCode.value;
+      updatePreview();
+    }
+    editLabel.addEventListener('input', applyOverrides);
+    editCode.addEventListener('input', applyOverrides);
+
+    /* 코드 위치 토글 */
+    var codeFaceOverrides = {}; /* { roomId: 'auto'|'left'|'right' } */
+    var cfBtnAuto = document.getElementById('exportCodeFaceAuto');
+    var cfBtnLeft = document.getElementById('exportCodeFaceLeft');
+    var cfBtnRight = document.getElementById('exportCodeFaceRight');
+    function updateCodeFaceBtns() {
+      var mode = (editingRoomId != null && codeFaceOverrides[editingRoomId]) || 'auto';
+      cfBtnAuto.style.background = mode === 'auto' ? '#3fc3b0' : '#fff';
+      cfBtnAuto.style.color = mode === 'auto' ? '#fff' : '#555';
+      cfBtnLeft.style.background = mode === 'left' ? '#3fc3b0' : '#fff';
+      cfBtnLeft.style.color = mode === 'left' ? '#fff' : '#555';
+      cfBtnRight.style.background = mode === 'right' ? '#3fc3b0' : '#fff';
+      cfBtnRight.style.color = mode === 'right' ? '#fff' : '#555';
+    }
+    function setCodeFace(mode) {
+      if (editingRoomId == null) return;
+      codeFaceOverrides[editingRoomId] = mode;
+      _expCodeFaces = codeFaceOverrides;
+      updateCodeFaceBtns();
+      updatePreview();
+    }
+    cfBtnAuto.onclick = function() { setCodeFace('auto'); };
+    cfBtnLeft.onclick = function() { setCodeFace('left'); };
+    cfBtnRight.onclick = function() { setCodeFace('right'); };
+
+    /* 코드 라벨 위치 미세 조정 */
+    var codeOffsets = {}; /* { roomId: { dx, dy } } */
+    var CODE_STEP = 5;
+    function moveCode(ddx, ddy) {
+      if (editingRoomId == null) return;
+      if (!codeOffsets[editingRoomId]) codeOffsets[editingRoomId] = { dx: 0, dy: 0 };
+      codeOffsets[editingRoomId].dx += ddx;
+      codeOffsets[editingRoomId].dy += ddy;
+      updatePreview();
+    }
+    document.getElementById('exportCodeUp').onclick = function() { moveCode(0, -CODE_STEP); };
+    document.getElementById('exportCodeDown').onclick = function() { moveCode(0, CODE_STEP); };
+    document.getElementById('exportCodeLeft').onclick = function() { moveCode(-CODE_STEP, 0); };
+    document.getElementById('exportCodeRight').onclick = function() { moveCode(CODE_STEP, 0); };
+    document.getElementById('exportCodePosReset').onclick = function() {
+      if (editingRoomId != null) { delete codeOffsets[editingRoomId]; updatePreview(); }
+    };
+
+    /* 앞뒤 순서 (z-order) */
+    /* 앞뒤 순서: room.zOrder 직접 수정 → 캔버스와 export 모두 반영 */
+    document.getElementById('exportZFront').onclick = function() {
+      if (editingRoomId == null) return;
+      var r = getRoomById(editingRoomId);
+      if (r) { r.zOrder = (r.zOrder || 0) + 1; updatePreview(); }
+    };
+    document.getElementById('exportZBack').onclick = function() {
+      if (editingRoomId == null) return;
+      var r = getRoomById(editingRoomId);
+      if (r) { r.zOrder = (r.zOrder || 0) - 1; updatePreview(); }
+    };
+    document.getElementById('exportZReset').onclick = function() {
+      if (editingRoomId == null) return;
+      var r = getRoomById(editingRoomId);
+      if (r) { r.zOrder = 0; updatePreview(); }
+    };
+
+    /* buildRotatedSvg 후 오버라이드 텍스트 적용 */
+    var origBuildRotatedSvg = buildRotatedSvg;
+    buildRotatedSvg = function(totalDeg) {
+      var svgEl = origBuildRotatedSvg(totalDeg);
+      /* 오버라이드 적용: 텍스트 + 코드 위치 오프셋 */
+      var groups = svgEl.querySelectorAll('.room-group');
+      for (var gi = 0; gi < groups.length; gi++) {
+        var rid = parseInt(groups[gi].getAttribute('data-room-id'), 10);
+        var ov = exportOverrides[rid];
+        var co = codeOffsets[rid];
+        var texts = groups[gi].querySelectorAll('text');
+        if (ov) {
+          if (texts.length > 0 && ov.label !== undefined) texts[0].textContent = ov.label;
+          if (texts.length > 1 && ov.code !== undefined) texts[1].textContent = ov.code;
+        }
+        /* 코드 라벨 위치 오프셋 적용 */
+        if (co && texts.length > 1) {
+          var cx = parseFloat(texts[1].getAttribute('x')) || 0;
+          var cy = parseFloat(texts[1].getAttribute('y')) || 0;
+          texts[1].setAttribute('x', String(cx + co.dx));
+          texts[1].setAttribute('y', String(cy + co.dy));
+        }
+      }
+      return svgEl;
+    };
+
+    function closeModal() { modal.setAttribute('aria-hidden', 'true'); modal.classList.remove('open'); }
+
+    document.getElementById('exportDownloadBtn').onclick = function() {
+      var angle = Math.round((parseFloat(slider.value) || 0) / 30) * 30;
+      var exportSvg = buildRotatedSvg(angle);
+      var serializer = new XMLSerializer();
+      var svgContent = '<?xml version="1.0" encoding="UTF-8"?>\n' + serializer.serializeToString(exportSvg);
+      var blob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      var planNameEl = document.getElementById('planFilename');
+      var exportName = (planNameEl && planNameEl.value.trim()) || 'floor-plan';
+      exportName = exportName.replace(/[^\w\u3131-\u318E\uAC00-\uD7A3\-]+/g, '_').replace(/^_|_$/g, '') || 'floor-plan';
+      a.download = exportName + '.svg';
+      a.click();
+      URL.revokeObjectURL(url);
+      closeModal();
+    };
+    document.getElementById('exportCancelBtn').onclick = closeModal;
+    modal.onclick = function(e) { if (e.target === modal) closeModal(); };
+  });
+
+  buildGrid();
+  applyZoom();
+})();
+  </script>
+</body>
+</html>
