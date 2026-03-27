@@ -2748,7 +2748,21 @@
       if (typeof p.vc !== 'undefined') return { vc: p.vc, vr: p.vr };
       return { col: p.col, row: p.row };
     });
-    var region = { id: floorIdCounter, type: 'polygon', points: normalized };
+    /* 공선점(collinear point) 제거 — 삐죽삐죽 방지 */
+    var cleaned = [];
+    var n = normalized.length;
+    for (var ci = 0; ci < n; ci++) {
+      var pa = normalized[(ci + n - 1) % n];
+      var pb = normalized[ci];
+      var pc = normalized[(ci + 1) % n];
+      var sa = typeof pa.vc !== 'undefined' ? vertexToScreen(pa.vc, pa.vr) : gridToScreen(pa.col, pa.row);
+      var sb = typeof pb.vc !== 'undefined' ? vertexToScreen(pb.vc, pb.vr) : gridToScreen(pb.col, pb.row);
+      var sc = typeof pc.vc !== 'undefined' ? vertexToScreen(pc.vc, pc.vr) : gridToScreen(pc.col, pc.row);
+      var cross = (sb.x - sa.x) * (sc.y - sb.y) - (sb.y - sa.y) * (sc.x - sb.x);
+      if (Math.abs(cross) > 0.5) cleaned.push(pb);
+    }
+    if (cleaned.length < 3) cleaned = normalized;
+    var region = { id: floorIdCounter, type: 'polygon', points: cleaned };
     floorRegions.push(region);
     renderFloors();
     buildGrid();
@@ -3313,8 +3327,15 @@
     }
     if (penMode) {
       var vertex = getGridVertexAtPoint(pt.x, pt.y);
-      /* 첫 포인트로 돌아오면 → 바로 바닥 생성, 선택 없이 다음 그리기 대기 */
-      if (penPoints.length >= 3 && penPoints[0].vc === vertex.vc && penPoints[0].vr === vertex.vr) {
+      /* 첫 포인트 화면 거리 기반 닫기 판정 (20px 이내면 닫기) */
+      var _penClose = false;
+      if (penPoints.length >= 3) {
+        var _fp = vertexToScreen(penPoints[0].vc, penPoints[0].vr);
+        var _dx = pt.x - _fp.x, _dy = pt.y - _fp.y;
+        if (_dx * _dx + _dy * _dy < 20 * 20) _penClose = true;
+        if (penPoints[0].vc === vertex.vc && penPoints[0].vr === vertex.vr) _penClose = true;
+      }
+      if (_penClose) {
         addFloorRegionPolygon(penPoints);
         penPoints = []; penCursorPos = null;
         penMode = false;
@@ -3481,12 +3502,34 @@
         else if (resizeEdge === 'bottom') r1 = Math.min(GRID_LIMIT, Math.max(resizeCell.row, r0 + MIN_ROOM_HEIGHT - 1));
         else if (resizeEdge === 'left') c0 = Math.max(-GRID_LIMIT, Math.min(resizeCell.col, c1 - MIN_ROOM_WIDTH + 1));
         else if (resizeEdge === 'right') c1 = Math.min(GRID_LIMIT, Math.max(resizeCell.col, c0 + MIN_ROOM_WIDTH - 1));
+        /* 리사이즈 시 바닥 영역을 먼저 확장해 isCellFloor 통과시킴 */
+        var _frSaved = null;
+        if (room.floorRegionId) {
+          for (var _fi = 0; _fi < floorRegions.length; _fi++) {
+            var _fr = floorRegions[_fi];
+            if (_fr.id === room.floorRegionId && _fr.type !== 'polygon') {
+              _frSaved = { c0: _fr.c0, r0: _fr.r0, c1: _fr.c1, r1: _fr.r1 };
+              _fr.c0 = Math.min(_fr.c0, c0); _fr.r0 = Math.min(_fr.r0, r0);
+              _fr.c1 = Math.max(_fr.c1, c1); _fr.r1 = Math.max(_fr.r1, r1);
+              break;
+            }
+          }
+        }
         if (canPlaceRoomForMove(c0, r0, c1, r1, resizingRoomId)) {
           room.c0 = c0;
           room.r0 = r0;
           room.c1 = c1;
           room.r1 = r1;
           renderRooms();
+        } else if (_frSaved) {
+          /* 리사이즈 실패 시 바닥 복원 */
+          for (var _fi2 = 0; _fi2 < floorRegions.length; _fi2++) {
+            if (floorRegions[_fi2].id === room.floorRegionId) {
+              floorRegions[_fi2].c0 = _frSaved.c0; floorRegions[_fi2].r0 = _frSaved.r0;
+              floorRegions[_fi2].c1 = _frSaved.c1; floorRegions[_fi2].r1 = _frSaved.r1;
+              break;
+            }
+          }
         }
       }
       return;
@@ -3495,6 +3538,38 @@
       var w = movingRoomStart.c1 - movingRoomStart.c0 + 1, h = movingRoomStart.r1 - movingRoomStart.r0 + 1;
       var nc0 = cell.col - movingRoomStart.offsetCol, nr0 = cell.row - movingRoomStart.offsetRow;
       var nc1 = nc0 + w - 1, nr1 = nr0 + h - 1;
+      /* 인접 방 가장자리 스냅 (1칸 이내) */
+      var SNAP_DIST = 1;
+      var bestSnap = { nc0: nc0, nr0: nr0 };
+      var bestSnapScore = Infinity;
+      for (var _si = -SNAP_DIST; _si <= SNAP_DIST; _si++) {
+        for (var _sj = -SNAP_DIST; _sj <= SNAP_DIST; _sj++) {
+          var tc0 = nc0 + _si, tr0 = nr0 + _sj, tc1 = tc0 + w - 1, tr1 = tr0 + h - 1;
+          var snapScore = Math.abs(_si) + Math.abs(_sj);
+          if (snapScore >= bestSnapScore) continue;
+          var edgeMatch = false;
+          for (var _ri = 0; _ri < rooms.length; _ri++) {
+            var otherR = rooms[_ri];
+            if (otherR.id === movingRoomId) continue;
+            /* 좌우 인접: 내 c1+1 == 상대 c0 또는 내 c0-1 == 상대 c1 */
+            if (tr0 <= otherR.r1 && tr1 >= otherR.r0) {
+              if (tc1 + 1 === otherR.c0 || tc0 - 1 === otherR.c1) edgeMatch = true;
+            }
+            /* 상하 인접: 내 r1+1 == 상대 r0 또는 내 r0-1 == 상대 r1 */
+            if (tc0 <= otherR.c1 && tc1 >= otherR.c0) {
+              if (tr1 + 1 === otherR.r0 || tr0 - 1 === otherR.r1) edgeMatch = true;
+            }
+          }
+          if (edgeMatch && tc0 >= -GRID_LIMIT && tc1 <= GRID_LIMIT && tr0 >= -GRID_LIMIT && tr1 <= GRID_LIMIT && canPlaceRoomForMove(tc0, tr0, tc1, tr1, movingRoomId)) {
+            bestSnapScore = snapScore;
+            bestSnap = { nc0: tc0, nr0: tr0 };
+          }
+        }
+      }
+      if (bestSnapScore < Infinity) {
+        nc0 = bestSnap.nc0; nr0 = bestSnap.nr0;
+        nc1 = nc0 + w - 1; nr1 = nr0 + h - 1;
+      }
       if (nc0 >= -GRID_LIMIT && nc1 <= GRID_LIMIT && nr0 >= -GRID_LIMIT && nr1 <= GRID_LIMIT && canPlaceRoomForMove(nc0, nr0, nc1, nr1, movingRoomId)) {
         movingRoomPreview = { c0: nc0, r0: nr0, c1: nc1, r1: nr1 };
       } else {
@@ -4672,11 +4747,8 @@
     /* 바닥 — 모든 바닥 영역을 하나의 path로 합침 (AI에서 한 개체) */
     var floorGroup = document.createElementNS(SVG_NS, 'g');
     floorGroup.setAttribute('id', 'floorLayer');
+    /* 바닥을 개별 4코너 다이아몬드로 출력 (boundary merge 알고리즘 대신 단순·안정적) */
     var floorPathD = '';
-    if (!_expRot) {
-      /* 0°: merged path (rect 바닥 합침) + polygon 바닥 추가 */
-      floorPathD = buildFloorMergedPathD({ mergePolygonAsCells: false });
-    }
     for (var efi = 0; efi < floorRegions.length; efi++) {
       var efr = floorRegions[efi];
       var efScreenPts = [];
@@ -4688,18 +4760,22 @@
           if (_expRot) s = rotatePointOnIsoPlane(_expRot.cx, _expRot.cy, s.x, s.y, _expRot.deg);
           return s;
         });
-      } else if (efr.c0 !== undefined && _expRot) {
-        /* 회전 시: 바닥 중심만 이소메트릭 회전 → 회전된 위치에서 다이아몬드 재생성 */
-        var fcc = (efr.c0 + efr.c1) / 2, fcr = (efr.r0 + efr.r1) / 2;
-        var fcs = gridToScreen(fcc, fcr);
-        var frot = rotatePointOnIsoPlane(_expRot.cx, _expRot.cy, fcs.x, fcs.y, _expRot.deg);
-        var fng = screenToGridFloat(frot.x, frot.y);
-        var fhw = (efr.c1 - efr.c0) / 2, fhh = (efr.r1 - efr.r0) / 2;
+      } else if (efr.c0 !== undefined) {
+        var efc0 = efr.c0, efr0 = efr.r0, efc1 = efr.c1, efr1 = efr.r1;
+        if (_expRot) {
+          var fcc = (efc0 + efc1) / 2, fcr = (efr0 + efr1) / 2;
+          var fcs = gridToScreen(fcc, fcr);
+          var frot = rotatePointOnIsoPlane(_expRot.cx, _expRot.cy, fcs.x, fcs.y, _expRot.deg);
+          var fng = screenToGridFloat(frot.x, frot.y);
+          var fhw = (efc1 - efc0) / 2, fhh = (efr1 - efr0) / 2;
+          efc0 = fng.c - fhw; efr0 = fng.r - fhh;
+          efc1 = fng.c + fhw; efr1 = fng.r + fhh;
+        }
         efScreenPts = [
-          screenCellDiamondTop(fng.c - fhw, fng.r - fhh),
-          screenCellDiamondRight(fng.c + fhw, fng.r - fhh),
-          screenCellDiamondBottom(fng.c + fhw, fng.r + fhh),
-          screenCellDiamondLeft(fng.c - fhw, fng.r + fhh)
+          screenCellDiamondTop(efc0, efr0),
+          screenCellDiamondRight(efc1, efr0),
+          screenCellDiamondBottom(efc1, efr1),
+          screenCellDiamondLeft(efc0, efr1)
         ];
       }
       if (efScreenPts.length >= 3) {
