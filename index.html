@@ -307,11 +307,10 @@
     /* ── SVG canvas elements ─────────────────────── */
     .grid-tile {
       fill: none;
-      stroke: rgba(200, 200, 200, 0.35);
-      stroke-width: 0.3;
+      stroke: none;
+      stroke-width: 0;
     }
-    .grid-tile.grid-near { stroke: rgba(200, 200, 200, 0.7); stroke-width: 0.5; }
-    .grid-tile:hover { fill: rgba(235, 240, 238, 0.2); }
+    .grid-tile:hover { fill: rgba(235, 240, 238, 0.3); }
     .floor-tile {
       fill: #d2d9e1;
       stroke: #d2d9e1;
@@ -632,6 +631,20 @@
     <div class="export-modal-box">
       <div class="export-modal-title">SVG 내보내기</div>
       <div class="export-preview-area" id="exportPreviewArea"></div>
+      <div class="export-angle-row">
+        <label>대지 크기</label>
+        <select id="exportArtboardSize" style="padding:4px 8px;border:1px solid #ddd;border-radius:6px;font-size:13px;font-family:inherit">
+          <option value="auto">자동 맞춤</option>
+          <option value="1080x1080">1080 × 1080 (1:1)</option>
+          <option value="1440x1080">1440 × 1080 (4:3)</option>
+          <option value="1920x1080">1920 × 1080 (16:9)</option>
+          <option value="2400x1080">2400 × 1080 (20:9)</option>
+          <option value="custom">직접 입력</option>
+        </select>
+        <input type="number" id="exportArtW" min="200" max="5000" value="1080" style="width:56px;padding:4px;border:1px solid #ddd;border-radius:4px;font-size:12px;display:none" placeholder="가로">
+        <span id="exportArtX" style="font-size:12px;color:#888;display:none">×</span>
+        <input type="number" id="exportArtH" min="200" max="5000" value="1080" style="width:56px;padding:4px;border:1px solid #ddd;border-radius:4px;font-size:12px;display:none" placeholder="세로">
+      </div>
       <div class="export-angle-row">
         <label for="exportAngleSlider">회전 각도</label>
         <input type="range" id="exportAngleSlider" min="-180" max="180" value="0" step="30">
@@ -2248,12 +2261,30 @@
      - 음영 오버레이는 fill-opacity 사용 (rgba 대신, Illustrator 호환)
      - CSS 클래스 없이 모든 스타일 인라인 */
   /* export 전용: 항상 4코너 다이아몬드 (셀 경계 추적 안 함 → AI에서 깔끔) */
+  /* 화면→격자 (반올림 없는 float 버전) */
+  function screenToGridFloat(sx, sy) {
+    var rx = sx - CENTER_X, ry = sy - CENTER_Y;
+    return { c: (rx / (TILE_W / 2) + ry / TILE_H) / 2, r: (ry / TILE_H - rx / (TILE_W / 2)) / 2 };
+  }
+
   function getRoomExportCorners(room) {
     var c0 = room.c0, r0 = room.r0, c1 = room.c1, r1 = room.r1;
     var deg = room.rotationDeg || 0;
+
+    /* export 회전: 방 중심만 이소메트릭 회전 → 회전된 격자 위치에서 방 재생성 */
+    if (_expRot) {
+      var centerScreen = gridToScreen((c0 + c1) / 2, (r0 + r1) / 2);
+      var rotCenter = rotatePointOnIsoPlane(_expRot.cx, _expRot.cy, centerScreen.x, centerScreen.y, _expRot.deg);
+      var newGrid = screenToGridFloat(rotCenter.x, rotCenter.y);
+      var hw = (c1 - c0) / 2, hh = (r1 - r0) / 2;
+      c0 = newGrid.c - hw; c1 = newGrid.c + hw;
+      r0 = newGrid.r - hh; r1 = newGrid.r + hh;
+    }
+
     var basePts = getAxisAlignedRoomFootprintBase(c0, r0, c1, r1)
       .map(function(p) { return { x: p.x, y: p.y }; });
     var n = basePts.length;
+
     if (deg !== 0) {
       var rcx = 0, rcy = 0;
       for (var i = 0; i < n; i++) { rcx += basePts[i].x; rcy += basePts[i].y; }
@@ -2263,15 +2294,7 @@
         basePts[j].x = rp.x; basePts[j].y = rp.y;
       }
     }
-    /* export에서는 ROOM_FOOTPRINT_SCALE, ROOM_EDGE_OFFSET_PX 미적용
-       → 방 풋프린트가 바닥 셀과 정확히 일치, 회전 시에도 바닥 밖 이탈 없음 */
-    /* export 회전: 바닥면(ground plane)만 회전 → 높이 돌출은 회전 후 적용 */
-    if (_expRot) {
-      for (var ei = 0; ei < n; ei++) {
-        var erp = rotatePointOnIsoPlane(_expRot.cx, _expRot.cy, basePts[ei].x, basePts[ei].y, _expRot.deg);
-        basePts[ei].x = erp.x; basePts[ei].y = erp.y;
-      }
-    }
+
     var H;
     if (room.type === 'facility' || room.type === 'door') H = 0;
     else if (room.type === 'counter') H = ROOM_HEIGHT / 2;
@@ -4614,18 +4637,25 @@
         for (var bpi = 0; bpi < bfr.points.length; bpi++) {
           var bvc = (typeof bfr.points[bpi].vc !== 'undefined') ? bfr.points[bpi].vc : (bfr.points[bpi].col || bfr.points[bpi].c);
           var bvr = (typeof bfr.points[bpi].vr !== 'undefined') ? bfr.points[bpi].vr : (bfr.points[bpi].row || bfr.points[bpi].r);
-          var bfp = _erp(gridToScreen(bvc, bvr).x, gridToScreen(bvc, bvr).y);
-          expandBounds(bfp.x, bfp.y);
+          var bfpS = gridToScreen(bvc, bvr);
+          if (_expRot) bfpS = rotatePointOnIsoPlane(_expRot.cx, _expRot.cy, bfpS.x, bfpS.y, _expRot.deg);
+          expandBounds(bfpS.x, bfpS.y);
         }
       } else if (bfr.c0 !== undefined) {
-        var bfcs = [
-          screenCellDiamondTop(bfr.c0, bfr.r0), screenCellDiamondRight(bfr.c1, bfr.r0),
-          screenCellDiamondBottom(bfr.c1, bfr.r1), screenCellDiamondLeft(bfr.c0, bfr.r1)
-        ];
-        for (var bfc = 0; bfc < bfcs.length; bfc++) {
-          var rbf = _erp(bfcs[bfc].x, bfcs[bfc].y);
-          expandBounds(rbf.x, rbf.y);
+        var bc0 = bfr.c0, br0 = bfr.r0, bc1 = bfr.c1, br1 = bfr.r1;
+        if (_expRot) {
+          var bfcc = (bc0+bc1)/2, bfcr = (br0+br1)/2;
+          var bfcs2 = gridToScreen(bfcc, bfcr);
+          var bfrot = rotatePointOnIsoPlane(_expRot.cx, _expRot.cy, bfcs2.x, bfcs2.y, _expRot.deg);
+          var bfng = screenToGridFloat(bfrot.x, bfrot.y);
+          var bfhw = (bc1-bc0)/2, bfhh = (br1-br0)/2;
+          bc0 = bfng.c-bfhw; bc1 = bfng.c+bfhw; br0 = bfng.r-bfhh; br1 = bfng.r+bfhh;
         }
+        var bfcs = [
+          screenCellDiamondTop(bc0, br0), screenCellDiamondRight(bc1, br0),
+          screenCellDiamondBottom(bc1, br1), screenCellDiamondLeft(bc0, br1)
+        ];
+        for (var bfc = 0; bfc < bfcs.length; bfc++) expandBounds(bfcs[bfc].x, bfcs[bfc].y);
       }
     }
     if (bMinX === Infinity) { bMinX = 0; bMinY = 0; bMaxX = 900; bMaxY = 600; }
@@ -4655,16 +4685,22 @@
           var vc = (typeof p.vc !== 'undefined') ? p.vc : (p.col || p.c);
           var vr = (typeof p.vr !== 'undefined') ? p.vr : (p.row || p.r);
           var s = gridToScreen(vc, vr);
-          return _erp(s.x, s.y);
+          if (_expRot) s = rotatePointOnIsoPlane(_expRot.cx, _expRot.cy, s.x, s.y, _expRot.deg);
+          return s;
         });
       } else if (efr.c0 !== undefined && _expRot) {
-        /* 회전 시: rect → 4코너 다이아몬드 */
+        /* 회전 시: 바닥 중심만 이소메트릭 회전 → 회전된 위치에서 다이아몬드 재생성 */
+        var fcc = (efr.c0 + efr.c1) / 2, fcr = (efr.r0 + efr.r1) / 2;
+        var fcs = gridToScreen(fcc, fcr);
+        var frot = rotatePointOnIsoPlane(_expRot.cx, _expRot.cy, fcs.x, fcs.y, _expRot.deg);
+        var fng = screenToGridFloat(frot.x, frot.y);
+        var fhw = (efr.c1 - efr.c0) / 2, fhh = (efr.r1 - efr.r0) / 2;
         efScreenPts = [
-          screenCellDiamondTop(efr.c0, efr.r0),
-          screenCellDiamondRight(efr.c1, efr.r0),
-          screenCellDiamondBottom(efr.c1, efr.r1),
-          screenCellDiamondLeft(efr.c0, efr.r1)
-        ].map(function(p) { return _erp(p.x, p.y); });
+          screenCellDiamondTop(fng.c - fhw, fng.r - fhh),
+          screenCellDiamondRight(fng.c + fhw, fng.r - fhh),
+          screenCellDiamondBottom(fng.c + fhw, fng.r + fhh),
+          screenCellDiamondLeft(fng.c - fhw, fng.r + fhh)
+        ];
       }
       if (efScreenPts.length >= 3) {
         floorPathD += ' M ' + efScreenPts[0].x.toFixed(2) + ' ' + efScreenPts[0].y.toFixed(2);
@@ -4769,6 +4805,21 @@
     slider.value = '0'; numIn.value = '0';
     modal.setAttribute('aria-hidden', 'false');
     modal.classList.add('open');
+
+    /* 대지 크기 컨트롤 */
+    var artSel = document.getElementById('exportArtboardSize');
+    var artWIn = document.getElementById('exportArtW');
+    var artHIn = document.getElementById('exportArtH');
+    var artXSpan = document.getElementById('exportArtX');
+    artSel.onchange = function() {
+      var isCustom = artSel.value === 'custom';
+      artWIn.style.display = isCustom ? '' : 'none';
+      artHIn.style.display = isCustom ? '' : 'none';
+      artXSpan.style.display = isCustom ? '' : 'none';
+      updatePreview();
+    };
+    artWIn.oninput = function() { updatePreview(); };
+    artHIn.oninput = function() { updatePreview(); };
 
     /* export 전용 빛 방향 */
     var exportLightDir = sideShadeLightFrom; /* 현재 캔버스 설정으로 초기화 */
@@ -4911,6 +4962,31 @@
     var origBuildRotatedSvg = buildRotatedSvg;
     buildRotatedSvg = function(totalDeg) {
       var svgEl = origBuildRotatedSvg(totalDeg);
+
+      /* 대지 크기 적용 */
+      var artVal = artSel.value;
+      var targetW = 0, targetH = 0;
+      if (artVal === 'custom') {
+        targetW = parseInt(artWIn.value) || 1080;
+        targetH = parseInt(artHIn.value) || 1080;
+      } else if (artVal !== 'auto') {
+        var sp = artVal.split('x');
+        targetW = parseInt(sp[0]); targetH = parseInt(sp[1]);
+      }
+      if (targetW > 0 && targetH > 0) {
+        var vb = svgEl.getAttribute('viewBox').split(' ').map(Number);
+        var contentW = vb[2], contentH = vb[3];
+        var contentCx = vb[0] + contentW / 2, contentCy = vb[1] + contentH / 2;
+        /* 콘텐츠를 대지에 맞추되, 콘텐츠가 더 크면 대지 확장 */
+        var finalW = Math.max(targetW, contentW);
+        var finalH = Math.max(targetH, contentH);
+        var nx = Math.floor(contentCx - finalW / 2);
+        var ny = Math.floor(contentCy - finalH / 2);
+        svgEl.setAttribute('viewBox', nx + ' ' + ny + ' ' + Math.ceil(finalW) + ' ' + Math.ceil(finalH));
+        svgEl.setAttribute('width', String(Math.ceil(finalW)));
+        svgEl.setAttribute('height', String(Math.ceil(finalH)));
+      }
+
       /* 오버라이드 적용: 텍스트 + 코드 위치 오프셋 */
       var groups = svgEl.querySelectorAll('.room-group');
       for (var gi = 0; gi < groups.length; gi++) {
