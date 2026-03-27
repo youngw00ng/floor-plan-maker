@@ -2748,20 +2748,34 @@
       if (typeof p.vc !== 'undefined') return { vc: p.vc, vr: p.vr };
       return { col: p.col, row: p.row };
     });
-    /* 공선점(collinear point) 제거 — 삐죽삐죽 방지 */
-    var cleaned = [];
-    var n = normalized.length;
-    for (var ci = 0; ci < n; ci++) {
-      var pa = normalized[(ci + n - 1) % n];
-      var pb = normalized[ci];
-      var pc = normalized[(ci + 1) % n];
-      var sa = typeof pa.vc !== 'undefined' ? vertexToScreen(pa.vc, pa.vr) : gridToScreen(pa.col, pa.row);
-      var sb = typeof pb.vc !== 'undefined' ? vertexToScreen(pb.vc, pb.vr) : gridToScreen(pb.col, pb.row);
-      var sc = typeof pc.vc !== 'undefined' ? vertexToScreen(pc.vc, pc.vr) : gridToScreen(pc.col, pc.row);
-      var cross = (sb.x - sa.x) * (sc.y - sb.y) - (sb.y - sa.y) * (sc.x - sb.x);
-      if (Math.abs(cross) > 0.5) cleaned.push(pb);
+    /* 공선점·지그재그 제거 — 각도 기반 (165° 이상이면 직선으로 간주) */
+    var cleaned = normalized.slice();
+    var changed = true;
+    while (changed) {
+      changed = false;
+      var next = [];
+      var cn = cleaned.length;
+      if (cn < 4) break;
+      for (var ci = 0; ci < cn; ci++) {
+        var pa = cleaned[(ci + cn - 1) % cn];
+        var pb = cleaned[ci];
+        var pc = cleaned[(ci + 1) % cn];
+        var sa = typeof pa.vc !== 'undefined' ? vertexToScreen(pa.vc, pa.vr) : gridToScreen(pa.col, pa.row);
+        var sb = typeof pb.vc !== 'undefined' ? vertexToScreen(pb.vc, pb.vr) : gridToScreen(pb.col, pb.row);
+        var sc = typeof pc.vc !== 'undefined' ? vertexToScreen(pc.vc, pc.vr) : gridToScreen(pc.col, pc.row);
+        var bax = sa.x - sb.x, bay = sa.y - sb.y;
+        var bcx = sc.x - sb.x, bcy = sc.y - sb.y;
+        var lenBA = Math.sqrt(bax * bax + bay * bay);
+        var lenBC = Math.sqrt(bcx * bcx + bcy * bcy);
+        if (lenBA < 0.01 || lenBC < 0.01) { changed = true; continue; } /* 중복점 제거 */
+        var cosAng = (bax * bcx + bay * bcy) / (lenBA * lenBC);
+        /* cos(165°) ≈ -0.966 → 각도가 165°~180°이면 거의 직선 */
+        if (cosAng < -0.96) { changed = true; continue; }
+        next.push(pb);
+      }
+      if (next.length >= 3) cleaned = next;
+      else break;
     }
-    if (cleaned.length < 3) cleaned = normalized;
     var region = { id: floorIdCounter, type: 'polygon', points: cleaned };
     floorRegions.push(region);
     renderFloors();
