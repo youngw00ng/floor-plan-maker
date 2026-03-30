@@ -3360,10 +3360,26 @@
         renderFloors();
         return;
       }
-      /* 포인트 추가 (셀 중심 좌표) */
+      /* 포인트 추가 — 실시간 직선 단순화 (계단 패턴 원천 차단) */
       var isDup = penPoints.length > 0 && penPoints[penPoints.length - 1].col === penCol && penPoints[penPoints.length - 1].row === penRow;
       if (!isDup) {
-        penPoints.push({ col: penCol, row: penRow });
+        if (penPoints.length >= 2) {
+          var _anc = penPoints[penPoints.length - 2];
+          var _cur = penPoints[penPoints.length - 1];
+          var _sa = gridToScreen(_anc.col, _anc.row);
+          var _sc = gridToScreen(_cur.col, _cur.row);
+          var _sn = gridToScreen(penCol, penRow);
+          var _dd = distPointToSegment(_sc.x, _sc.y, _sa.x, _sa.y, _sn.x, _sn.y);
+          if (_dd < Math.max(HW, HH) * 1.5) {
+            /* 직선 위의 중간점 → 교체 (계단 방지) */
+            penPoints[penPoints.length - 1] = { col: penCol, row: penRow };
+          } else {
+            /* 방향 전환 → 새 점 추가 */
+            penPoints.push({ col: penCol, row: penRow });
+          }
+        } else {
+          penPoints.push({ col: penCol, row: penRow });
+        }
       }
       renderPenPreview();
       return;
