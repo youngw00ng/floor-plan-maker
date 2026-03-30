@@ -3369,8 +3369,11 @@
           var _sa = gridToScreen(_anc.col, _anc.row);
           var _sc = gridToScreen(_cur.col, _cur.row);
           var _sn = gridToScreen(penCol, penRow);
-          var _dd = distPointToSegment(_sc.x, _sc.y, _sa.x, _sa.y, _sn.x, _sn.y);
-          if (_dd < Math.max(HW, HH) * 1.5) {
+          var _acx = _sn.x - _sa.x, _acy = _sn.y - _sa.y;
+          var _abx = _sc.x - _sa.x, _aby = _sc.y - _sa.y;
+          var _acLen = Math.sqrt(_acx * _acx + _acy * _acy);
+          var _dd = _acLen > 0.01 ? Math.abs(_acx * _aby - _acy * _abx) / _acLen : 0;
+          if (_dd < Math.max(HW, HH) * 2) {
             /* 직선 위의 중간점 → 교체 (계단 방지) */
             penPoints[penPoints.length - 1] = { col: penCol, row: penRow };
           } else {
