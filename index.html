@@ -2759,7 +2759,7 @@
       if (len < 0.01) return Math.sqrt((bx - ax) * (bx - ax) + (by - ay) * (by - ay));
       return Math.abs(dx * (by - ay) - dy * (bx - ax)) / len;
     }
-    var tolerance = 9999; /* 디버그: 극단적 임계값으로 Visvalingam 실행 확인 */
+    var tolerance = Math.max(HW, HH) * 1.5;
     var cleaned = normalized.slice();
     while (cleaned.length > 3) {
       var minDist = Infinity, minIdx = -1;
