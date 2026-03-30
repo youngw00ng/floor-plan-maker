@@ -2746,33 +2746,25 @@
       if (typeof p.vc !== 'undefined') return { vc: p.vc, vr: p.vr };
       return { col: p.col, row: p.row };
     });
-    /* 공선점·지그재그 제거 — 각도 기반 (165° 이상이면 직선으로 간주) */
+    /* Visvalingam 단순화 — 수직 거리가 작은 점을 반복 제거 (계단 패턴 해결) */
+    function _ptToScreen(p) {
+      return typeof p.vc !== 'undefined' ? vertexToScreen(p.vc, p.vr)
+        : gridToScreen(typeof p.col !== 'undefined' ? p.col : p.c, typeof p.row !== 'undefined' ? p.row : p.r);
+    }
+    var tolerance = Math.max(HW, HH) * 1.2;
     var cleaned = normalized.slice();
-    var changed = true;
-    while (changed) {
-      changed = false;
-      var next = [];
+    while (cleaned.length > 3) {
+      var minDist = Infinity, minIdx = -1;
       var cn = cleaned.length;
-      if (cn < 4) break;
       for (var ci = 0; ci < cn; ci++) {
-        var pa = cleaned[(ci + cn - 1) % cn];
-        var pb = cleaned[ci];
-        var pc = cleaned[(ci + 1) % cn];
-        var sa = typeof pa.vc !== 'undefined' ? vertexToScreen(pa.vc, pa.vr) : gridToScreen(pa.col, pa.row);
-        var sb = typeof pb.vc !== 'undefined' ? vertexToScreen(pb.vc, pb.vr) : gridToScreen(pb.col, pb.row);
-        var sc = typeof pc.vc !== 'undefined' ? vertexToScreen(pc.vc, pc.vr) : gridToScreen(pc.col, pc.row);
-        var bax = sa.x - sb.x, bay = sa.y - sb.y;
-        var bcx = sc.x - sb.x, bcy = sc.y - sb.y;
-        var lenBA = Math.sqrt(bax * bax + bay * bay);
-        var lenBC = Math.sqrt(bcx * bcx + bcy * bcy);
-        if (lenBA < 0.01 || lenBC < 0.01) { changed = true; continue; } /* 중복점 제거 */
-        var cosAng = (bax * bcx + bay * bcy) / (lenBA * lenBC);
-        /* cos(165°) ≈ -0.966 → 각도가 165°~180°이면 거의 직선 */
-        if (cosAng < -0.96) { changed = true; continue; }
-        next.push(pb);
+        var sa = _ptToScreen(cleaned[(ci + cn - 1) % cn]);
+        var sb = _ptToScreen(cleaned[ci]);
+        var sc = _ptToScreen(cleaned[(ci + 1) % cn]);
+        var d = distPointToSegment(sb.x, sb.y, sa.x, sa.y, sc.x, sc.y);
+        if (d < minDist) { minDist = d; minIdx = ci; }
       }
-      if (next.length >= 3) cleaned = next;
-      else break;
+      if (minDist >= tolerance) break;
+      cleaned.splice(minIdx, 1);
     }
     var region = { id: floorIdCounter, type: 'polygon', points: cleaned };
     floorRegions.push(region);
