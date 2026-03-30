@@ -2753,7 +2753,7 @@
       if (typeof sp.vc !== 'undefined') _spts.push(vertexToScreen(sp.vc, sp.vr));
       else _spts.push(gridToScreen(typeof sp.col !== 'undefined' ? sp.col : sp.c, typeof sp.row !== 'undefined' ? sp.row : sp.r));
     }
-    var dpTol = Math.max(HW, HH) * 5;
+    var dpTol = Math.max(HW, HH) * 8;
     function _dpRun(pts, idxs) {
       if (idxs.length <= 2) return idxs;
       var first = pts[idxs[0]], last = pts[idxs[idxs.length - 1]];
