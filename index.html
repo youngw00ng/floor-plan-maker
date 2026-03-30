@@ -2746,34 +2746,53 @@
       if (typeof p.vc !== 'undefined') return { vc: p.vc, vr: p.vr };
       return { col: p.col, row: p.row };
     });
-    /* Visvalingam 단순화 — 수직 거리가 작은 점을 반복 제거 (계단 패턴 해결) */
-    function _pts(p) {
-      if (typeof p.vc !== 'undefined') return vertexToScreen(p.vc, p.vr);
-      var c = typeof p.col !== 'undefined' ? p.col : p.c;
-      var r = typeof p.row !== 'undefined' ? p.row : p.r;
-      return gridToScreen(c, r);
+    /* Douglas-Peucker 단순화 (닫힌 폴리곤) */
+    var _spts = [];
+    for (var si = 0; si < normalized.length; si++) {
+      var sp = normalized[si];
+      if (typeof sp.vc !== 'undefined') _spts.push(vertexToScreen(sp.vc, sp.vr));
+      else _spts.push(gridToScreen(typeof sp.col !== 'undefined' ? sp.col : sp.c, typeof sp.row !== 'undefined' ? sp.row : sp.r));
     }
-    function _perpDist(ax, ay, bx, by, cx, cy) {
-      var dx = cx - ax, dy = cy - ay;
+    var dpTol = Math.max(HW, HH) * 1.5;
+    function _dpRun(pts, idxs) {
+      if (idxs.length <= 2) return idxs;
+      var first = pts[idxs[0]], last = pts[idxs[idxs.length - 1]];
+      var dx = last.x - first.x, dy = last.y - first.y;
       var len = Math.sqrt(dx * dx + dy * dy);
-      if (len < 0.01) return Math.sqrt((bx - ax) * (bx - ax) + (by - ay) * (by - ay));
-      return Math.abs(dx * (by - ay) - dy * (bx - ax)) / len;
-    }
-    var tolerance = Math.max(HW, HH) * 10;
-    var cleaned = normalized.slice();
-    while (cleaned.length > 3) {
-      var minDist = Infinity, minIdx = -1;
-      var cn = cleaned.length;
-      for (var ci = 0; ci < cn; ci++) {
-        var sa = _pts(cleaned[(ci + cn - 1) % cn]);
-        var sb = _pts(cleaned[ci]);
-        var sc = _pts(cleaned[(ci + 1) % cn]);
-        var d = _perpDist(sa.x, sa.y, sb.x, sb.y, sc.x, sc.y);
-        if (d < minDist) { minDist = d; minIdx = ci; }
+      var maxD = 0, maxI = 0;
+      for (var i = 1; i < idxs.length - 1; i++) {
+        var p = pts[idxs[i]];
+        var d = len < 0.01 ? Math.sqrt((p.x - first.x) * (p.x - first.x) + (p.y - first.y) * (p.y - first.y))
+              : Math.abs(dx * (p.y - first.y) - dy * (p.x - first.x)) / len;
+        if (d > maxD) { maxD = d; maxI = i; }
       }
-      if (minDist >= tolerance) break;
-      cleaned.splice(minIdx, 1);
+      if (maxD < dpTol) return [idxs[0], idxs[idxs.length - 1]];
+      var left = _dpRun(pts, idxs.slice(0, maxI + 1));
+      var right = _dpRun(pts, idxs.slice(maxI));
+      return left.concat(right.slice(1));
     }
+    /* 가장 먼 두 점으로 폴리곤을 두 체인으로 분할 */
+    var _fd = 0, _f1 = 0, _f2 = 0;
+    for (var fa = 0; fa < _spts.length; fa++) {
+      for (var fb = fa + 1; fb < _spts.length; fb++) {
+        var dd = (_spts[fa].x - _spts[fb].x) * (_spts[fa].x - _spts[fb].x) + (_spts[fa].y - _spts[fb].y) * (_spts[fa].y - _spts[fb].y);
+        if (dd > _fd) { _fd = dd; _f1 = fa; _f2 = fb; }
+      }
+    }
+    var chain1idx = [], chain2idx = [];
+    for (var ci = _f1; ci <= _f2; ci++) chain1idx.push(ci);
+    for (var ci2 = _f2; ci2 < _spts.length; ci2++) chain2idx.push(ci2);
+    for (var ci3 = 0; ci3 <= _f1; ci3++) chain2idx.push(ci3);
+    var keep1 = _dpRun(_spts, chain1idx);
+    var keep2 = _dpRun(_spts, chain2idx);
+    var keepSet = {};
+    for (var ki = 0; ki < keep1.length; ki++) keepSet[keep1[ki]] = true;
+    for (var kj = 0; kj < keep2.length; kj++) keepSet[keep2[kj]] = true;
+    var cleaned = [];
+    for (var ck = 0; ck < normalized.length; ck++) {
+      if (keepSet[ck]) cleaned.push(normalized[ck]);
+    }
+    if (cleaned.length < 3) cleaned = normalized;
     var region = { id: floorIdCounter, type: 'polygon', points: cleaned };
     floorRegions.push(region);
     renderFloors();
