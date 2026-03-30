@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>방 도면 만들기</title>
+  <title>방 도면 만들기 v3</title>
   <style>
     :root {
       --primary: #33C6B0;
@@ -2759,7 +2759,7 @@
       if (len < 0.01) return Math.sqrt((bx - ax) * (bx - ax) + (by - ay) * (by - ay));
       return Math.abs(dx * (by - ay) - dy * (bx - ax)) / len;
     }
-    var tolerance = Math.max(HW, HH) * 4;
+    var tolerance = Math.max(HW, HH) * 10;
     var cleaned = normalized.slice();
     while (cleaned.length > 3) {
       var minDist = Infinity, minIdx = -1;
