@@ -2746,52 +2746,60 @@
       if (typeof p.vc !== 'undefined') return { vc: p.vc, vr: p.vr };
       return { col: p.col, row: p.row };
     });
-    /* Douglas-Peucker 단순화 (닫힌 폴리곤) */
+    /* Douglas-Peucker 단순화 (닫힌 폴리곤 — 반복 수렴) */
     var _spts = [];
     for (var si = 0; si < normalized.length; si++) {
       var sp = normalized[si];
       if (typeof sp.vc !== 'undefined') _spts.push(vertexToScreen(sp.vc, sp.vr));
       else _spts.push(gridToScreen(typeof sp.col !== 'undefined' ? sp.col : sp.c, typeof sp.row !== 'undefined' ? sp.row : sp.r));
     }
-    var dpTol = Math.max(HW, HH) * 20;
-    function _dpRun(pts, idxs) {
+    var dpTol = Math.max(HW, HH) * 5;
+    function _dpLine(pts, idxs) {
       if (idxs.length <= 2) return idxs;
-      var first = pts[idxs[0]], last = pts[idxs[idxs.length - 1]];
-      var dx = last.x - first.x, dy = last.y - first.y;
+      var a = pts[idxs[0]], b = pts[idxs[idxs.length - 1]];
+      var dx = b.x - a.x, dy = b.y - a.y;
       var len = Math.sqrt(dx * dx + dy * dy);
       var maxD = 0, maxI = 0;
       for (var i = 1; i < idxs.length - 1; i++) {
         var p = pts[idxs[i]];
-        var d = len < 0.01 ? Math.sqrt((p.x - first.x) * (p.x - first.x) + (p.y - first.y) * (p.y - first.y))
-              : Math.abs(dx * (p.y - first.y) - dy * (p.x - first.x)) / len;
+        var d = len < 0.01 ? Math.sqrt((p.x - a.x) * (p.x - a.x) + (p.y - a.y) * (p.y - a.y))
+              : Math.abs(dx * (p.y - a.y) - dy * (p.x - a.x)) / len;
         if (d > maxD) { maxD = d; maxI = i; }
       }
       if (maxD < dpTol) return [idxs[0], idxs[idxs.length - 1]];
-      var left = _dpRun(pts, idxs.slice(0, maxI + 1));
-      var right = _dpRun(pts, idxs.slice(maxI));
+      var left = _dpLine(pts, idxs.slice(0, maxI + 1));
+      var right = _dpLine(pts, idxs.slice(maxI));
       return left.concat(right.slice(1));
     }
-    /* 가장 먼 두 점으로 폴리곤을 두 체인으로 분할 */
-    var _fd = 0, _f1 = 0, _f2 = 0;
-    for (var fa = 0; fa < _spts.length; fa++) {
-      for (var fb = fa + 1; fb < _spts.length; fb++) {
-        var dd = (_spts[fa].x - _spts[fb].x) * (_spts[fa].x - _spts[fb].x) + (_spts[fa].y - _spts[fb].y) * (_spts[fa].y - _spts[fb].y);
-        if (dd > _fd) { _fd = dd; _f1 = fa; _f2 = fb; }
+    /* 여러 분할점으로 반복 → 분할점 문제 해결 */
+    var dpIdxs = [];
+    for (var di = 0; di < normalized.length; di++) dpIdxs.push(di);
+    var prevLen = dpIdxs.length + 1;
+    for (var pass = 0; pass < 5 && dpIdxs.length < prevLen && dpIdxs.length > 3; pass++) {
+      prevLen = dpIdxs.length;
+      /* 가장 먼 두 점 찾기 (현재 남은 점들 중) */
+      var bestD = 0, s1 = 0, s2 = 0;
+      for (var ia = 0; ia < dpIdxs.length; ia++) {
+        for (var ib = ia + 1; ib < dpIdxs.length; ib++) {
+          var pa = _spts[dpIdxs[ia]], pb = _spts[dpIdxs[ib]];
+          var dd = (pa.x - pb.x) * (pa.x - pb.x) + (pa.y - pb.y) * (pa.y - pb.y);
+          if (dd > bestD) { bestD = dd; s1 = ia; s2 = ib; }
+        }
+      }
+      var c1 = dpIdxs.slice(s1, s2 + 1);
+      var c2 = dpIdxs.slice(s2).concat(dpIdxs.slice(0, s1 + 1));
+      var r1 = _dpLine(_spts, c1);
+      var r2 = _dpLine(_spts, c2);
+      var keepMap = {};
+      for (var ri = 0; ri < r1.length; ri++) keepMap[r1[ri]] = true;
+      for (var rj = 0; rj < r2.length; rj++) keepMap[r2[rj]] = true;
+      dpIdxs = [];
+      for (var rk = 0; rk < normalized.length; rk++) {
+        if (keepMap[rk]) dpIdxs.push(rk);
       }
     }
-    var chain1idx = [], chain2idx = [];
-    for (var ci = _f1; ci <= _f2; ci++) chain1idx.push(ci);
-    for (var ci2 = _f2; ci2 < _spts.length; ci2++) chain2idx.push(ci2);
-    for (var ci3 = 0; ci3 <= _f1; ci3++) chain2idx.push(ci3);
-    var keep1 = _dpRun(_spts, chain1idx);
-    var keep2 = _dpRun(_spts, chain2idx);
-    var keepSet = {};
-    for (var ki = 0; ki < keep1.length; ki++) keepSet[keep1[ki]] = true;
-    for (var kj = 0; kj < keep2.length; kj++) keepSet[keep2[kj]] = true;
     var cleaned = [];
-    for (var ck = 0; ck < normalized.length; ck++) {
-      if (keepSet[ck]) cleaned.push(normalized[ck]);
-    }
+    for (var ck = 0; ck < dpIdxs.length; ck++) cleaned.push(normalized[dpIdxs[ck]]);
     if (cleaned.length < 3) cleaned = normalized;
     var region = { id: floorIdCounter, type: 'polygon', points: cleaned };
     floorRegions.push(region);
