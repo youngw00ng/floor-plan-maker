@@ -4727,20 +4727,15 @@
           expandBounds(bfpS.x, bfpS.y);
         }
       } else if (bfr.c0 !== undefined) {
-        var bc0 = bfr.c0, br0 = bfr.r0, bc1 = bfr.c1, br1 = bfr.r1;
-        if (_expRot) {
-          var bfcc = (bc0+bc1)/2, bfcr = (br0+br1)/2;
-          var bfcs2 = gridToScreen(bfcc, bfcr);
-          var bfrot = rotatePointOnIsoPlane(_expRot.cx, _expRot.cy, bfcs2.x, bfcs2.y, _expRot.deg);
-          var bfng = screenToGridFloat(bfrot.x, bfrot.y);
-          var bfhw = (bc1-bc0)/2, bfhh = (br1-br0)/2;
-          bc0 = bfng.c-bfhw; bc1 = bfng.c+bfhw; br0 = bfng.r-bfhh; br1 = bfng.r+bfhh;
-        }
         var bfcs = [
-          screenCellDiamondTop(bc0, br0), screenCellDiamondRight(bc1, br0),
-          screenCellDiamondBottom(bc1, br1), screenCellDiamondLeft(bc0, br1)
+          screenCellDiamondTop(bfr.c0, bfr.r0), screenCellDiamondRight(bfr.c1, bfr.r0),
+          screenCellDiamondBottom(bfr.c1, bfr.r1), screenCellDiamondLeft(bfr.c0, bfr.r1)
         ];
-        for (var bfc = 0; bfc < bfcs.length; bfc++) expandBounds(bfcs[bfc].x, bfcs[bfc].y);
+        for (var bfc = 0; bfc < bfcs.length; bfc++) {
+          var bfp = bfcs[bfc];
+          if (_expRot) bfp = rotatePointOnIsoPlane(_expRot.cx, _expRot.cy, bfp.x, bfp.y, _expRot.deg);
+          expandBounds(bfp.x, bfp.y);
+        }
       }
     }
     if (bMinX === Infinity) { bMinX = 0; bMinY = 0; bMaxX = 900; bMaxY = 600; }
@@ -4770,22 +4765,18 @@
           return s;
         });
       } else if (efr.c0 !== undefined) {
-        var efc0 = efr.c0, efr0 = efr.r0, efc1 = efr.c1, efr1 = efr.r1;
-        if (_expRot) {
-          var fcc = (efc0 + efc1) / 2, fcr = (efr0 + efr1) / 2;
-          var fcs = gridToScreen(fcc, fcr);
-          var frot = rotatePointOnIsoPlane(_expRot.cx, _expRot.cy, fcs.x, fcs.y, _expRot.deg);
-          var fng = screenToGridFloat(frot.x, frot.y);
-          var fhw = (efc1 - efc0) / 2, fhh = (efr1 - efr0) / 2;
-          efc0 = fng.c - fhw; efr0 = fng.r - fhh;
-          efc1 = fng.c + fhw; efr1 = fng.r + fhh;
-        }
+        /* 원래 위치에서 4코너 생성 → 회전 시 각 점을 개별 회전 */
         efScreenPts = [
-          screenCellDiamondTop(efc0, efr0),
-          screenCellDiamondRight(efc1, efr0),
-          screenCellDiamondBottom(efc1, efr1),
-          screenCellDiamondLeft(efc0, efr1)
+          screenCellDiamondTop(efr.c0, efr.r0),
+          screenCellDiamondRight(efr.c1, efr.r0),
+          screenCellDiamondBottom(efr.c1, efr.r1),
+          screenCellDiamondLeft(efr.c0, efr.r1)
         ];
+        if (_expRot) {
+          efScreenPts = efScreenPts.map(function(p) {
+            return rotatePointOnIsoPlane(_expRot.cx, _expRot.cy, p.x, p.y, _expRot.deg);
+          });
+        }
       }
       if (efScreenPts.length >= 3) {
         floorPathD += ' M ' + efScreenPts[0].x.toFixed(2) + ' ' + efScreenPts[0].y.toFixed(2);
