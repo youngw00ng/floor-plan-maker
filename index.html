@@ -2262,14 +2262,14 @@
   /* 화면→격자 (반올림 없는 float 버전) */
   function screenToGridFloat(sx, sy) {
     var rx = sx - CENTER_X, ry = sy - CENTER_Y;
-    return { c: (rx / (TILE_W / 2) + ry / TILE_H) / 2, r: (ry / TILE_H - rx / (TILE_W / 2)) / 2 };
+    return { c: (rx / (TILE_W / 2) + ry / (TILE_H / 2)) / 2, r: (ry / (TILE_H / 2) - rx / (TILE_W / 2)) / 2 };
   }
 
   function getRoomExportCorners(room) {
     var c0 = room.c0, r0 = room.r0, c1 = room.c1, r1 = room.r1;
     var deg = room.rotationDeg || 0;
 
-    /* export 회전: 방 중심만 이소메트릭 회전 → 회전된 격자 위치에서 방 재생성 */
+    /* export 회전: 중심 위치를 이동 + 방 자체 각도에 export 각도를 합산 */
     if (_expRot) {
       var centerScreen = gridToScreen((c0 + c1) / 2, (r0 + r1) / 2);
       var rotCenter = rotatePointOnIsoPlane(_expRot.cx, _expRot.cy, centerScreen.x, centerScreen.y, _expRot.deg);
@@ -2277,6 +2277,7 @@
       var hw = (c1 - c0) / 2, hh = (r1 - r0) / 2;
       c0 = newGrid.c - hw; c1 = newGrid.c + hw;
       r0 = newGrid.r - hh; r1 = newGrid.r + hh;
+      deg = ((deg + _expRot.deg) % 360 + 360) % 360;
     }
 
     var basePts = getAxisAlignedRoomFootprintBase(c0, r0, c1, r1)
