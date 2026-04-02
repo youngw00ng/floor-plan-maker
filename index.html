@@ -834,8 +834,8 @@
       </div>
       <label for="editLabel">윗면 (예: 1번)</label>
       <input type="text" id="editLabel" placeholder="1번" maxlength="20" />
-      <label for="editLabelCode">앞면 (예: S1)</label>
-      <input type="text" id="editLabelCode" placeholder="S1" maxlength="20" />
+      <label for="editLabelCode">앞면 (예: 1)</label>
+      <input type="text" id="editLabelCode" placeholder="1" maxlength="20" />
       <div class="edit-type-row">
         <span class="edit-type-label">앞면 방향</span>
         <label class="edit-radio-label"><input type="radio" name="editFaceSide" value="right" id="editFaceRight" checked /> 오른쪽면</label>
@@ -2445,11 +2445,11 @@
 
     /* 3: 윗면 폴리곤 제거 — hull + 양옆면만 남김 */
 
-    /* 윗면 라벨 — 방: text-anchor:start (시작점=중심), 시설: text-anchor:middle (가운데 정렬) */
+    /* 윗면 라벨 — 모두 text-anchor:middle (가운데 정렬) */
     var lt = document.createElementNS(SVG_NS, 'text');
     lt.setAttribute('x', String(rcx));
     lt.setAttribute('y', String(rcy));
-    lt.setAttribute('text-anchor', isFacility ? 'middle' : 'start');
+    lt.setAttribute('text-anchor', 'middle');
     lt.setAttribute('dominant-baseline', 'central');
     lt.setAttribute('style', 'font-family:Pretendard,sans-serif;font-size:' + roomLabelFontSizeTop + 'px;font-weight:600');
     lt.setAttribute('fill', '#1a1a1a');
@@ -3360,7 +3360,7 @@
       id: roomIdCounter,
       c0: c0, r0: r0, c1: c1, r1: r1,
       label: roomIdCounter + '번',
-      code: 'S' + roomIdCounter,
+      code: String(roomIdCounter),
       type: 'room',
       faceSide: 'right',
       rotationDeg: 0,
@@ -3379,7 +3379,7 @@
       id: id,
       c0: c0, r0: r0, c1: c1, r1: r1,
       label: label || (id + '번'),
-      code: code || ('S' + id),
+      code: code || String(id),
       type: type || 'room',
       faceSide: faceSide || 'right',
       rotationDeg: 0,
@@ -4443,13 +4443,28 @@
   document.getElementById('editLabelCode').addEventListener('keydown', onEditKeydown);
 
   // room_id 매핑 UI (각 방마다 "N번 룸 [입력칸]" 형태)
-  // loadRoomIdMap();  // 페이지 로드 시 이전 세션 매핑을 자동으로 불러오지 않음
+  loadRoomIdMap();
   (function setupRoomMapUI() {
     var btn = document.getElementById('btnRoomMap');
     var wrap = document.getElementById('roomMapWrap');
     var listEl = document.getElementById('roomMapList');
     var status = document.getElementById('roomMapStatus');
     var toolbarHint = document.getElementById('roomMapToolbarHint');
+    function pruneStaleMapEntries() {
+      /* 현재 방 목록에 없는 roomIdMap 키를 자동 제거 (이전 세션 잔여 데이터 정리) */
+      var validKeys = Object.create(null);
+      for (var ri = 0; ri < rooms.length; ri++) {
+        if (rooms[ri].type === 'counter' || rooms[ri].type === 'facility' || rooms[ri].type === 'door') continue;
+        var rno = getRoomNumberFromLabel(rooms[ri].label, rooms[ri].id);
+        validKeys[rno] = true;
+      }
+      var keys = Object.keys(roomIdMap);
+      var changed = false;
+      for (var ki = 0; ki < keys.length; ki++) {
+        if (!validKeys[keys[ki]]) { delete roomIdMap[keys[ki]]; changed = true; }
+      }
+      if (changed) saveRoomIdMap();
+    }
     function refreshStatus() {
       var count = Object.keys(roomIdMap).length;
       var msg = count ? ('저장된 매핑: ' + count + '개 (SVG 저장 시 room_id 자동 포함)') : '저장된 매핑이 없습니다.';
@@ -4500,6 +4515,7 @@
     }
     if (btn && wrap && listEl) {
       btn.addEventListener('click', function() {
+        pruneStaleMapEntries();
         buildRoomMapRows();
         refreshStatus();
         wrap.classList.add('show');
@@ -4523,6 +4539,7 @@
         saveRoomIdMap();
         refreshStatus();
       });
+      pruneStaleMapEntries();
       refreshStatus();
     }
   })();
