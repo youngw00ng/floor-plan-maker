@@ -1784,7 +1784,7 @@
   function renderFloors() {
     floorLayer.innerHTML = '';
     /* 바닥 배경: merged path로 격자 위를 완전히 덮음 (안티앨리어싱 갭 방지) */
-    var bgPathD = buildFloorMergedPathD({ mergePolygonAsCells: true });
+    var bgPathD = buildFloorMergedPathD({ mergePolygonAsCells: false });
     if (bgPathD) {
       var bgPath = document.createElementNS(SVG_NS, 'path');
       bgPath.setAttribute('d', bgPathD);
@@ -3456,20 +3456,20 @@
       return;
     }
     if (penMode) {
-      /* 셀 중심(정수 좌표) 스냅 — 지그재그 방지 */
-      var penCell = getCellAtPoint(pt.x, pt.y);
-      if (!penCell) { return; }
-      var penCol = penCell.col, penRow = penCell.row;
+      /* 격자 꼭짓점(0.5 단위) 스냅 — 대각선도 깔끔하게 */
+      var penVtx = getGridVertexAtPoint(pt.x, pt.y);
+      if (!penVtx) { return; }
+      var penVC = penVtx.vc, penVR = penVtx.vr;
       /* 첫 포인트 화면 거리 기반 닫기 판정 (20px 이내면 닫기) */
       var _penClose = false;
       if (penPoints.length >= 3) {
         var _fpKey = penPoints[0];
-        var _fpC = typeof _fpKey.col !== 'undefined' ? _fpKey.col : _fpKey.vc;
-        var _fpR = typeof _fpKey.row !== 'undefined' ? _fpKey.row : _fpKey.vr;
-        var _fp = gridToScreen(_fpC, _fpR);
+        var _fpC = typeof _fpKey.vc !== 'undefined' ? _fpKey.vc : _fpKey.col;
+        var _fpR = typeof _fpKey.vr !== 'undefined' ? _fpKey.vr : _fpKey.row;
+        var _fp = typeof _fpKey.vc !== 'undefined' ? vertexToScreen(_fpC, _fpR) : gridToScreen(_fpC, _fpR);
         var _dx = pt.x - _fp.x, _dy = pt.y - _fp.y;
         if (_dx * _dx + _dy * _dy < 25 * 25) _penClose = true;
-        if (_fpC === penCol && _fpR === penRow) _penClose = true;
+        if (_fpC === penVC && _fpR === penVR) _penClose = true;
       }
       if (_penClose) {
         addFloorRegionPolygon(penPoints);
@@ -3486,10 +3486,10 @@
         renderFloors();
         return;
       }
-      /* 포인트 추가 (단순화는 완성 시 Visvalingam에서 처리) */
-      var isDup = penPoints.length > 0 && penPoints[penPoints.length - 1].col === penCol && penPoints[penPoints.length - 1].row === penRow;
+      /* 포인트 추가 */
+      var isDup = penPoints.length > 0 && penPoints[penPoints.length - 1].vc === penVC && penPoints[penPoints.length - 1].vr === penVR;
       if (!isDup) {
-        penPoints.push({ col: penCol, row: penRow });
+        penPoints.push({ vc: penVC, vr: penVR });
       }
       renderPenPreview();
       return;
@@ -3740,8 +3740,8 @@
     }
     /* 펜 모드: 커서 따라가는 라이브 라인 (패닝 중에는 스킵) */
     if (penMode && penPoints.length > 0 && !isPanning) {
-      var penMoveCell = getCellAtPoint(pt.x, pt.y);
-      penCursorPos = penMoveCell ? gridToScreen(penMoveCell.col, penMoveCell.row) : { x: pt.x, y: pt.y };
+      var penMoveVtx = getGridVertexAtPoint(pt.x, pt.y);
+      penCursorPos = penMoveVtx ? vertexToScreen(penMoveVtx.vc, penMoveVtx.vr) : { x: pt.x, y: pt.y };
       renderPenPreview();
     }
   });
@@ -4056,6 +4056,18 @@
 
   document.addEventListener('keydown', function(e) {
     var tag = (e.target && e.target.tagName) ? e.target.tagName.toUpperCase() : '';
+    /* Escape: 펜 모드 진행 중이면 취소 */
+    if (e.key === 'Escape' && penMode) {
+      e.preventDefault();
+      penPoints = []; penCursorPos = null;
+      penMode = false;
+      var btnPenEl = document.getElementById('btnPen');
+      if (btnPenEl) btnPenEl.classList.remove('pen-on');
+      if (wrap) wrap.style.cursor = '';
+      if (svg) svg.style.cursor = '';
+      renderPenPreview();
+      return;
+    }
     if (tag === 'INPUT' || tag === 'TEXTAREA') return;
 
     if (selectedRoomId != null) {
