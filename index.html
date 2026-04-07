@@ -2427,13 +2427,11 @@
     /* 1: 6각형 hull — 바탕색, 하나의 polygon */
     var hullPoly = document.createElementNS(SVG_NS, 'polygon');
     hullPoly.setAttribute('points', pstr(hull));
-    /* 방(room) 타입: fill 제거하여 키오스크 앱이 동적으로 색상 주입 가능하게 */
-    if (!isCounter && !isFacility && !isDoor) {
-      /* fill 없음 — 키오스크에서 상태별 색상 주입 */
-    } else {
-      hullPoly.setAttribute('fill', baseColor);
-    }
+    hullPoly.setAttribute('fill', baseColor);
     hullPoly.setAttribute('stroke', 'none');
+    if (!isCounter && !isFacility && !isDoor) {
+      hullPoly.setAttribute('data-room-hull', 'true');  /* 다운로드 시 fill 제거 마커 */
+    }
     g.appendChild(hullPoly);
 
     /* 2: 보이는 측면에 검정 투명도 음영 */
@@ -5302,6 +5300,12 @@
     document.getElementById('exportDownloadBtn').onclick = function() {
       var angle = Math.round((parseFloat(slider.value) || 0) / 30) * 30;
       var exportSvg = buildRotatedSvg(angle);
+      /* 다운로드 전: 방 hull polygon의 fill 제거 (키오스크 동적 색상 주입용) */
+      var _hullPolys = exportSvg.querySelectorAll("[data-room-hull]");
+      for (var _hi = 0; _hi < _hullPolys.length; _hi++) {
+        _hullPolys[_hi].removeAttribute("fill");
+        _hullPolys[_hi].removeAttribute("data-room-hull");
+      }
       var serializer = new XMLSerializer();
       var svgContent = '<?xml version="1.0" encoding="UTF-8"?>\n' + serializer.serializeToString(exportSvg);
       var blob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' });
