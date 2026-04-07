@@ -2453,7 +2453,11 @@
     lt.setAttribute('dominant-baseline', 'central');
     lt.setAttribute('style', 'font-family:Pretendard,sans-serif;font-size:' + roomLabelFontSizeTop + 'px;font-weight:600');
     lt.setAttribute('fill', '#1a1a1a');
-    lt.textContent = room.label || (room.id + '번');
+    var ltSpan = document.createElementNS(SVG_NS, 'tspan');
+    ltSpan.setAttribute('x', String(rcx));
+    ltSpan.setAttribute('y', String(rcy));
+    ltSpan.textContent = room.label || (room.id + '번');
+    lt.appendChild(ltSpan);
     g.appendChild(lt);
 
     /* 벽면 코드 라벨 — codeFace 오버라이드 지원 (auto/left/right), 기본값=room.faceSide */
@@ -2512,7 +2516,11 @@
         lf.setAttribute('dominant-baseline', 'central');
         lf.setAttribute('style', 'font-family:Pretendard,sans-serif;font-size:' + roomLabelFontSizeFace + 'px;font-weight:600;text-anchor:middle');
         lf.setAttribute('fill', '#ffffff');
-        lf.textContent = String(room.code).trim();
+        var lfSpan = document.createElementNS(SVG_NS, 'tspan');
+        lfSpan.setAttribute('x', String(cfx));
+        lfSpan.setAttribute('y', String(cfy));
+        lfSpan.textContent = String(room.code).trim();
+        lf.appendChild(lfSpan);
         g.appendChild(lf);
       }
     }
@@ -5008,8 +5016,12 @@
         if (adminRoomId) {
           var roomIdAttr = 'r' + String(adminRoomId).trim();
           el.setAttribute('room_id', roomIdAttr);
-          var rNodes = el.querySelectorAll('path,polygon,text');
-          for (var ni = 0; ni < rNodes.length; ni++) rNodes[ni].setAttribute('room_id', roomIdAttr);
+          el.setAttribute('data-room-id', String(adminRoomId).trim());
+          var rNodes = el.querySelectorAll('path,polygon,text,tspan');
+          for (var ni = 0; ni < rNodes.length; ni++) {
+            rNodes[ni].setAttribute('room_id', roomIdAttr);
+            rNodes[ni].setAttribute('data-room-id', String(adminRoomId).trim());
+          }
         }
       }
       roomGroup.appendChild(el);
