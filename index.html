@@ -4547,8 +4547,8 @@
         saveRoomIdMap();
         refreshStatus();
       });
-      pruneStaleMapEntries();
       refreshStatus();
+      window.__refreshRoomMapStatus = refreshStatus;
     }
   })();
 
@@ -4787,6 +4787,8 @@
                 if (!raw) return;
                 var data = JSON.parse(raw);
                 restoreState(data);
+                saveRoomIdMap();
+                if (window.__refreshRoomMapStatus) window.__refreshRoomMapStatus();
                 if (inputPlanName) inputPlanName.value = data.planName || planName;
                 modal.setAttribute('aria-hidden', 'true');
               } catch (e) {
