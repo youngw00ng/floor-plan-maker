@@ -5300,10 +5300,9 @@
     document.getElementById('exportDownloadBtn').onclick = function() {
       var angle = Math.round((parseFloat(slider.value) || 0) / 30) * 30;
       var exportSvg = buildRotatedSvg(angle);
-      /* 다운로드 전: 방 hull polygon의 fill 제거 (키오스크 동적 색상 주입용) */
+      /* data-room-hull 마커 정리 (fill은 유지 — 키오스크에서 setAttribute로 덮어씀) */
       var _hullPolys = exportSvg.querySelectorAll("[data-room-hull]");
       for (var _hi = 0; _hi < _hullPolys.length; _hi++) {
-        _hullPolys[_hi].removeAttribute("fill");
         _hullPolys[_hi].removeAttribute("data-room-hull");
       }
       var serializer = new XMLSerializer();
