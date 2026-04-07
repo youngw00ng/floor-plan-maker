@@ -2427,7 +2427,12 @@
     /* 1: 6각형 hull — 바탕색, 하나의 polygon */
     var hullPoly = document.createElementNS(SVG_NS, 'polygon');
     hullPoly.setAttribute('points', pstr(hull));
-    hullPoly.setAttribute('fill', baseColor);
+    /* 방(room) 타입: fill 제거하여 키오스크 앱이 동적으로 색상 주입 가능하게 */
+    if (!isCounter && !isFacility && !isDoor) {
+      /* fill 없음 — 키오스크에서 상태별 색상 주입 */
+    } else {
+      hullPoly.setAttribute('fill', baseColor);
+    }
     hullPoly.setAttribute('stroke', 'none');
     g.appendChild(hullPoly);
 
