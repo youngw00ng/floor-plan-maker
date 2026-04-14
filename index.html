@@ -1251,6 +1251,9 @@
     var edgeCount = Object.create(null);
     var edgeEnds = Object.create(null);
     var verts = Object.create(null);
+    /* 모든 region의 셀을 먼저 중복제거하여 수집 — 두 region이 같은 셀을 포함하면
+       간선 계수가 홀수가 되어 경계가 엉뚱하게 생성됨 */
+    var allCellSet = Object.create(null);
     for (var i = 0; i < floorRegions.length; i++) {
       var region = floorRegions[i];
       var cellsToAdd = [];
@@ -1264,8 +1267,16 @@
           }
         }
       }
-      for (var idx = 0; idx < cellsToAdd.length; idx++) {
-        var c = cellsToAdd[idx].col, r = cellsToAdd[idx].row;
+      for (var _ci = 0; _ci < cellsToAdd.length; _ci++) {
+        var _ck = cellsToAdd[_ci].col + ',' + cellsToAdd[_ci].row;
+        if (!allCellSet[_ck]) allCellSet[_ck] = cellsToAdd[_ci];
+      }
+    }
+    {
+      var _keys = Object.keys(allCellSet);
+      for (var idx = 0; idx < _keys.length; idx++) {
+        var _cell = allCellSet[_keys[idx]];
+        var c = _cell.col, r = _cell.row;
           var ptsStr = getDiamondPoints(c, r).split(' ');
           if (ptsStr.length !== 4) continue;
           var a0 = ptsStr[0].split(','), a1 = ptsStr[1].split(','), a2 = ptsStr[2].split(','), a3 = ptsStr[3].split(',');
@@ -1323,31 +1334,33 @@
     }
     var pathD = '';
     function nextBoundaryVertex(prevKey, currKey) {
-      /* 회전 순서 기반 탐색: 현재 꼭짓점(curr)에서 들어온 방향(curr→prev) 다음으로
-         시계방향 각도순서상 바로 다음 나가는 간선을 선택. 이는 평면 그래프의
-         각 면(face)을 일관되게 추적하는 표준 기법이며, 핀치 꼭짓점(간선 4개 이상이
-         모이는 지점)에서도 각 덩어리의 외곽을 독립적으로 감싸준다. */
       var curr = parsePt(currKey);
       var prev = parsePt(prevKey);
       var neigh = adj[currKey] || [];
       if (neigh.length === 0) return null;
       if (neigh.length === 1) return neigh[0];
-      var inAng = Math.atan2(prev.y - curr.y, prev.x - curr.x);
-      var TWO_PI = Math.PI * 2;
+      var dx = prev.x - curr.x, dy = prev.y - curr.y;
       var best = null;
-      var bestDiff = Infinity;
+      var bestCross = -Infinity;
+      var bestDistSq = -1;
+      var EPS = 0.001;
+      var leftTurns = [];
       for (var i = 0; i < neigh.length; i++) {
-        if (neigh[i] === prevKey) continue; /* 방금 왔던 간선은 제외 */
+        if (neigh[i] === prevKey) continue;
         var n = parsePt(neigh[i]);
-        var outAng = Math.atan2(n.y - curr.y, n.x - curr.x);
-        /* inAng → outAng 의 시계방향(CW) 회전 각도 (0, 2π] */
-        var diff = inAng - outAng;
-        while (diff <= 0) diff += TWO_PI;
-        while (diff > TWO_PI) diff -= TWO_PI;
-        if (diff < bestDiff) { bestDiff = diff; best = neigh[i]; }
+        var cross = dx * (n.y - curr.y) - dy * (n.x - curr.x);
+        var distSq = (n.x - curr.x) * (n.x - curr.x) + (n.y - curr.y) * (n.y - curr.y);
+        if (cross > EPS) leftTurns.push({ key: neigh[i], cross: cross, distSq: distSq });
+        else if (cross > bestCross || (cross === bestCross && distSq > bestDistSq)) {
+          bestCross = cross;
+          bestDistSq = distSq;
+          best = neigh[i];
+        }
       }
-      /* 모든 이웃이 prev 하나뿐이면(꼬리) 되돌아가기 */
-      if (best === null) best = neigh[0];
+      if (leftTurns.length > 0) {
+        leftTurns.sort(function(a, b) { return a.cross - b.cross || a.distSq - b.distSq; });
+        best = leftTurns[0].key;
+      }
       return best;
     }
     while (true) {
@@ -1447,31 +1460,33 @@
       }
     }
     function nextBoundaryVertex(prevKey, currKey) {
-      /* 회전 순서 기반 탐색: 현재 꼭짓점(curr)에서 들어온 방향(curr→prev) 다음으로
-         시계방향 각도순서상 바로 다음 나가는 간선을 선택. 이는 평면 그래프의
-         각 면(face)을 일관되게 추적하는 표준 기법이며, 핀치 꼭짓점(간선 4개 이상이
-         모이는 지점)에서도 각 덩어리의 외곽을 독립적으로 감싸준다. */
       var curr = parsePt(currKey);
       var prev = parsePt(prevKey);
       var neigh = adj[currKey] || [];
       if (neigh.length === 0) return null;
       if (neigh.length === 1) return neigh[0];
-      var inAng = Math.atan2(prev.y - curr.y, prev.x - curr.x);
-      var TWO_PI = Math.PI * 2;
+      var dx = prev.x - curr.x, dy = prev.y - curr.y;
       var best = null;
-      var bestDiff = Infinity;
+      var bestCross = -Infinity;
+      var bestDistSq = -1;
+      var EPS = 0.001;
+      var leftTurns = [];
       for (var i = 0; i < neigh.length; i++) {
-        if (neigh[i] === prevKey) continue; /* 방금 왔던 간선은 제외 */
+        if (neigh[i] === prevKey) continue;
         var n = parsePt(neigh[i]);
-        var outAng = Math.atan2(n.y - curr.y, n.x - curr.x);
-        /* inAng → outAng 의 시계방향(CW) 회전 각도 (0, 2π] */
-        var diff = inAng - outAng;
-        while (diff <= 0) diff += TWO_PI;
-        while (diff > TWO_PI) diff -= TWO_PI;
-        if (diff < bestDiff) { bestDiff = diff; best = neigh[i]; }
+        var cross = dx * (n.y - curr.y) - dy * (n.x - curr.x);
+        var distSq = (n.x - curr.x) * (n.x - curr.x) + (n.y - curr.y) * (n.y - curr.y);
+        if (cross > EPS) leftTurns.push({ key: neigh[i], cross: cross, distSq: distSq });
+        else if (cross > bestCross || (cross === bestCross && distSq > bestDistSq)) {
+          bestCross = cross;
+          bestDistSq = distSq;
+          best = neigh[i];
+        }
       }
-      /* 모든 이웃이 prev 하나뿐이면(꼬리) 되돌아가기 */
-      if (best === null) best = neigh[0];
+      if (leftTurns.length > 0) {
+        leftTurns.sort(function(a, b) { return a.cross - b.cross || a.distSq - b.distSq; });
+        best = leftTurns[0].key;
+      }
       return best;
     }
     var visitedEdge = Object.create(null);
