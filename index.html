@@ -1323,36 +1323,31 @@
     }
     var pathD = '';
     function nextBoundaryVertex(prevKey, currKey) {
+      /* 회전 순서 기반 탐색: 현재 꼭짓점(curr)에서 들어온 방향(curr→prev) 다음으로
+         시계방향 각도순서상 바로 다음 나가는 간선을 선택. 이는 평면 그래프의
+         각 면(face)을 일관되게 추적하는 표준 기법이며, 핀치 꼭짓점(간선 4개 이상이
+         모이는 지점)에서도 각 덩어리의 외곽을 독립적으로 감싸준다. */
       var curr = parsePt(currKey);
       var prev = parsePt(prevKey);
       var neigh = adj[currKey] || [];
       if (neigh.length === 0) return null;
       if (neigh.length === 1) return neigh[0];
-      var dx = prev.x - curr.x, dy = prev.y - curr.y;
+      var inAng = Math.atan2(prev.y - curr.y, prev.x - curr.x);
+      var TWO_PI = Math.PI * 2;
       var best = null;
-      var bestCross = -Infinity;
-      var bestDistSq = -1;
-      var EPS = 0.001;
-      var leftTurns = [];
+      var bestDiff = Infinity;
       for (var i = 0; i < neigh.length; i++) {
-        if (neigh[i] === prevKey) continue;
+        if (neigh[i] === prevKey) continue; /* 방금 왔던 간선은 제외 */
         var n = parsePt(neigh[i]);
-        var cross = dx * (n.y - curr.y) - dy * (n.x - curr.x);
-        var distSq = (n.x - curr.x) * (n.x - curr.x) + (n.y - curr.y) * (n.y - curr.y);
-        if (cross > EPS) leftTurns.push({ key: neigh[i], cross: cross, distSq: distSq });
-        else if (cross > bestCross || (cross === bestCross && distSq > bestDistSq)) {
-          bestCross = cross;
-          bestDistSq = distSq;
-          best = neigh[i];
-        }
+        var outAng = Math.atan2(n.y - curr.y, n.x - curr.x);
+        /* inAng → outAng 의 시계방향(CW) 회전 각도 (0, 2π] */
+        var diff = inAng - outAng;
+        while (diff <= 0) diff += TWO_PI;
+        while (diff > TWO_PI) diff -= TWO_PI;
+        if (diff < bestDiff) { bestDiff = diff; best = neigh[i]; }
       }
-      if (leftTurns.length > 0) {
-        /* 핀치 꼭짓점(두 영역이 점 하나만 공유): 가장 날카로운 왼쪽 턴을 선택해
-           각 덩어리 외곽을 독립적으로 감싸도록 한다. 가장 완만한 턴을 고르면
-           경계가 대각선으로 가로질러 삼각형/대각선 잘림이 생긴다. */
-        leftTurns.sort(function(a, b) { return b.cross - a.cross || b.distSq - a.distSq; });
-        best = leftTurns[0].key;
-      }
+      /* 모든 이웃이 prev 하나뿐이면(꼬리) 되돌아가기 */
+      if (best === null) best = neigh[0];
       return best;
     }
     while (true) {
@@ -1452,36 +1447,31 @@
       }
     }
     function nextBoundaryVertex(prevKey, currKey) {
+      /* 회전 순서 기반 탐색: 현재 꼭짓점(curr)에서 들어온 방향(curr→prev) 다음으로
+         시계방향 각도순서상 바로 다음 나가는 간선을 선택. 이는 평면 그래프의
+         각 면(face)을 일관되게 추적하는 표준 기법이며, 핀치 꼭짓점(간선 4개 이상이
+         모이는 지점)에서도 각 덩어리의 외곽을 독립적으로 감싸준다. */
       var curr = parsePt(currKey);
       var prev = parsePt(prevKey);
       var neigh = adj[currKey] || [];
       if (neigh.length === 0) return null;
       if (neigh.length === 1) return neigh[0];
-      var dx = prev.x - curr.x, dy = prev.y - curr.y;
+      var inAng = Math.atan2(prev.y - curr.y, prev.x - curr.x);
+      var TWO_PI = Math.PI * 2;
       var best = null;
-      var bestCross = -Infinity;
-      var bestDistSq = -1;
-      var EPS = 0.001;
-      var leftTurns = [];
+      var bestDiff = Infinity;
       for (var i = 0; i < neigh.length; i++) {
-        if (neigh[i] === prevKey) continue;
+        if (neigh[i] === prevKey) continue; /* 방금 왔던 간선은 제외 */
         var n = parsePt(neigh[i]);
-        var cross = dx * (n.y - curr.y) - dy * (n.x - curr.x);
-        var distSq = (n.x - curr.x) * (n.x - curr.x) + (n.y - curr.y) * (n.y - curr.y);
-        if (cross > EPS) leftTurns.push({ key: neigh[i], cross: cross, distSq: distSq });
-        else if (cross > bestCross || (cross === bestCross && distSq > bestDistSq)) {
-          bestCross = cross;
-          bestDistSq = distSq;
-          best = neigh[i];
-        }
+        var outAng = Math.atan2(n.y - curr.y, n.x - curr.x);
+        /* inAng → outAng 의 시계방향(CW) 회전 각도 (0, 2π] */
+        var diff = inAng - outAng;
+        while (diff <= 0) diff += TWO_PI;
+        while (diff > TWO_PI) diff -= TWO_PI;
+        if (diff < bestDiff) { bestDiff = diff; best = neigh[i]; }
       }
-      if (leftTurns.length > 0) {
-        /* 핀치 꼭짓점(두 영역이 점 하나만 공유): 가장 날카로운 왼쪽 턴을 선택해
-           각 덩어리 외곽을 독립적으로 감싸도록 한다. 가장 완만한 턴을 고르면
-           경계가 대각선으로 가로질러 삼각형/대각선 잘림이 생긴다. */
-        leftTurns.sort(function(a, b) { return b.cross - a.cross || b.distSq - a.distSq; });
-        best = leftTurns[0].key;
-      }
+      /* 모든 이웃이 prev 하나뿐이면(꼬리) 되돌아가기 */
+      if (best === null) best = neigh[0];
       return best;
     }
     var visitedEdge = Object.create(null);
