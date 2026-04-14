@@ -3635,17 +3635,25 @@
       return;
     }
     if (dragStart && cell !== null) {
+      var _prevDragCur = dragCurrent;
       dragCurrent = { col: cell.col, row: cell.row };
-      /* 지우개 드래그: 브러시 방식으로 현재 셀만 지움 (bounding-box X) */
+      /* 지우개 드래그: 브러시 방식 — 이전 셀과 현재 셀 사이를 보간해 라인 위 모든 셀 지움 */
       if (eraserMode && eraserDragActive) {
-        if (isCellFloor(cell.col, cell.row) && !isCellInAnyRoom(cell.col, cell.row)) {
-          if (!eraserHistoryPushed) { pushHistory(); eraserHistoryPushed = true; }
-          if (removeFloorCell(cell.col, cell.row, true)) {
-            eraserChanged = true;
-            renderFloors();
-            buildGrid();
+        var _erased = false;
+        var _from = _prevDragCur || { col: cell.col, row: cell.row };
+        var _dc = cell.col - _from.col, _dr = cell.row - _from.row;
+        var _steps = Math.max(Math.abs(_dc), Math.abs(_dr));
+        if (_steps < 1) _steps = 1;
+        for (var _s = 0; _s <= _steps; _s++) {
+          var _t = _s / _steps;
+          var _ic = Math.round(_from.col + _dc * _t);
+          var _ir = Math.round(_from.row + _dr * _t);
+          if (isCellFloor(_ic, _ir) && !isCellInAnyRoom(_ic, _ir)) {
+            if (!eraserHistoryPushed) { pushHistory(); eraserHistoryPushed = true; }
+            if (removeFloorCell(_ic, _ir, true)) { eraserChanged = true; _erased = true; }
           }
         }
+        if (_erased) { renderFloors(); buildGrid(); }
       }
       renderFloorPreview();
       // 드래그 중 사이즈 힌트 위치를 마우스 근처로 이동
