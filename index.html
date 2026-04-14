@@ -1245,14 +1245,9 @@
   function buildFloorMergedPathD(options) {
     options = options || {};
     var mergePolygonAsCells = options.mergePolygonAsCells !== false;
-    function keyPt(x, y) { return x.toFixed(2) + ',' + y.toFixed(2); }
-    function parsePt(k) { var sp = k.split(','); return { x: parseFloat(sp[0]), y: parseFloat(sp[1]) }; }
-    function edgeKey(a, b) { return (a < b) ? (a + '|' + b) : (b + '|' + a); }
-    var edgeCount = Object.create(null);
-    var edgeEnds = Object.create(null);
-    var verts = Object.create(null);
-    /* 모든 region의 셀을 먼저 중복제거하여 수집 — 두 region이 같은 셀을 포함하면
-       간선 계수가 홀수가 되어 경계가 엉뚱하게 생성됨 */
+    /* 모든 region의 셀을 중복제거 수집 후, 각 셀을 다이아몬드 subpath로 출력.
+       경계 추적(boundary tracing)은 핀치 꼭짓점에서 대각선 잘림이 생기므로
+       셀별 개별 path를 쌓는 방식으로 단순화한다. 겹치는 셀은 자연스럽게 합쳐진다. */
     var allCellSet = Object.create(null);
     for (var i = 0; i < floorRegions.length; i++) {
       var region = floorRegions[i];
@@ -1272,141 +1267,17 @@
         if (!allCellSet[_ck]) allCellSet[_ck] = cellsToAdd[_ci];
       }
     }
-    {
-      var _keys = Object.keys(allCellSet);
-      for (var idx = 0; idx < _keys.length; idx++) {
-        var _cell = allCellSet[_keys[idx]];
-        var c = _cell.col, r = _cell.row;
-          var ptsStr = getDiamondPoints(c, r).split(' ');
-          if (ptsStr.length !== 4) continue;
-          var a0 = ptsStr[0].split(','), a1 = ptsStr[1].split(','), a2 = ptsStr[2].split(','), a3 = ptsStr[3].split(',');
-          var v0 = keyPt(parseFloat(a0[0]), parseFloat(a0[1]));
-          var v1 = keyPt(parseFloat(a1[0]), parseFloat(a1[1]));
-          var v2 = keyPt(parseFloat(a2[0]), parseFloat(a2[1]));
-          var v3 = keyPt(parseFloat(a3[0]), parseFloat(a3[1]));
-          if (!verts[v0]) verts[v0] = parsePt(v0);
-          if (!verts[v1]) verts[v1] = parsePt(v1);
-          if (!verts[v2]) verts[v2] = parsePt(v2);
-          if (!verts[v3]) verts[v3] = parsePt(v3);
-          var e01 = edgeKey(v0, v1), e12 = edgeKey(v1, v2), e23 = edgeKey(v2, v3), e30 = edgeKey(v3, v0);
-          edgeEnds[e01] = edgeEnds[e01] || [v0, v1];
-          edgeEnds[e12] = edgeEnds[e12] || [v1, v2];
-          edgeEnds[e23] = edgeEnds[e23] || [v2, v3];
-          edgeEnds[e30] = edgeEnds[e30] || [v3, v0];
-          edgeCount[e01] = (edgeCount[e01] || 0) + 1;
-          edgeCount[e12] = (edgeCount[e12] || 0) + 1;
-          edgeCount[e23] = (edgeCount[e23] || 0) + 1;
-          edgeCount[e30] = (edgeCount[e30] || 0) + 1;
-      }
-    }
-    var adj = Object.create(null);
-    var boundaryEdges = [];
-    for (var ek in edgeCount) {
-      if (edgeCount[ek] === 1) {
-        boundaryEdges.push(ek);
-        var ends = edgeEnds[ek];
-        var a = ends[0], b = ends[1];
-        if (!adj[a]) adj[a] = [];
-        if (!adj[b]) adj[b] = [];
-        adj[a].push(b);
-        adj[b].push(a);
-      }
-    }
-    var visitedEdge = Object.create(null);
-    function takeAny() {
-      for (var i = 0; i < boundaryEdges.length; i++) {
-        var k = boundaryEdges[i];
-        if (!visitedEdge[k]) return k;
-      }
-      return null;
-    }
-    function simplifyPolygon(points) {
-      var out = [];
-      var n = points.length;
-      for (var i = 0; i < n; i++) {
-        var a = points[(i + n - 1) % n];
-        var b = points[i];
-        var c = points[(i + 1) % n];
-        var cross = (b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x);
-        if (Math.abs(cross) > 0.5) out.push(b);
-      }
-      return out.length < 3 ? points : out;
-    }
     var pathD = '';
-    function nextBoundaryVertex(prevKey, currKey) {
-      var curr = parsePt(currKey);
-      var prev = parsePt(prevKey);
-      var neigh = adj[currKey] || [];
-      if (neigh.length === 0) return null;
-      if (neigh.length === 1) return neigh[0];
-      var dx = prev.x - curr.x, dy = prev.y - curr.y;
-      var best = null;
-      var bestCross = -Infinity;
-      var bestDistSq = -1;
-      var EPS = 0.001;
-      var leftTurns = [];
-      for (var i = 0; i < neigh.length; i++) {
-        if (neigh[i] === prevKey) continue;
-        var n = parsePt(neigh[i]);
-        var cross = dx * (n.y - curr.y) - dy * (n.x - curr.x);
-        var distSq = (n.x - curr.x) * (n.x - curr.x) + (n.y - curr.y) * (n.y - curr.y);
-        if (cross > EPS) leftTurns.push({ key: neigh[i], cross: cross, distSq: distSq });
-        else if (cross > bestCross || (cross === bestCross && distSq > bestDistSq)) {
-          bestCross = cross;
-          bestDistSq = distSq;
-          best = neigh[i];
-        }
-      }
-      if (leftTurns.length > 0) {
-        leftTurns.sort(function(a, b) { return a.cross - b.cross || a.distSq - b.distSq; });
-        best = leftTurns[0].key;
-      }
-      return best;
-    }
-    while (true) {
-      var seed = takeAny();
-      if (!seed) break;
-      var se = edgeEnds[seed];
-      var start = se[0];
-      var curr = start;
-      var prev = se[1];
-      var loop = [start];
-      visitedEdge[seed] = true;
-      curr = prev;
-      loop.push(curr);
-      var safety = 0;
-      while (curr !== start && safety++ < 200000) {
-        var nextKey = nextBoundaryVertex(loop[loop.length - 2], curr);
-        if (!nextKey) break;
-        var ekey = edgeKey(curr, nextKey);
-        if (visitedEdge[ekey]) break;
-        visitedEdge[ekey] = true;
-        prev = curr;
-        curr = nextKey;
-        loop.push(curr);
-      }
-      if (loop.length > 1 && loop[0] === loop[loop.length - 1]) {
-        loop.pop();
-      }
-      if (loop.length >= 4) {
-        var distinct = Object.create(null);
-        for (var li = 0; li < loop.length; li++) distinct[loop[li]] = true;
-        if (Object.keys(distinct).length >= 4) {
-          var loopPts = [];
-          for (var li = 0; li < loop.length; li++) loopPts.push(verts[loop[li]]);
-          var area = 0;
-          for (var ai = 0; ai < loopPts.length; ai++) {
-            var a = loopPts[ai], b = loopPts[(ai + 1) % loopPts.length];
-            area += a.x * b.y - b.x * a.y;
-          }
-          area = Math.abs(area) * 0.5;
-          if (area >= (HW * HH) * 0.05) {
-            pathD += 'M ' + loopPts[0].x + ' ' + loopPts[0].y + ' ';
-            for (var si = 1; si < loopPts.length; si++) pathD += 'L ' + loopPts[si].x + ' ' + loopPts[si].y + ' ';
-            pathD += 'Z ';
-          }
-        }
-      }
+    var keys = Object.keys(allCellSet);
+    for (var k = 0; k < keys.length; k++) {
+      var cell = allCellSet[keys[k]];
+      var ptsStr = getDiamondPoints(cell.col, cell.row).split(' ');
+      if (ptsStr.length !== 4) continue;
+      var p0 = ptsStr[0].split(','), p1 = ptsStr[1].split(','), p2 = ptsStr[2].split(','), p3 = ptsStr[3].split(',');
+      pathD += 'M ' + p0[0] + ' ' + p0[1] +
+               ' L ' + p1[0] + ' ' + p1[1] +
+               ' L ' + p2[0] + ' ' + p2[1] +
+               ' L ' + p3[0] + ' ' + p3[1] + ' Z ';
     }
     return pathD.trim();
   }
