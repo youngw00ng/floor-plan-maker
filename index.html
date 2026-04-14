@@ -1000,6 +1000,9 @@
   var worldDragCur = null;
   var historyStack = [];
   var eraserMode = false;
+  var eraserDragActive = false;       /* 지우개 드래그 진행 중 */
+  var eraserHistoryPushed = false;    /* 이번 드래그에서 히스토리 push 여부 */
+  var eraserChanged = false;          /* 이번 드래그에서 실제로 지웠는지 */
   var penMode = false;
   var penPoints = [];
   var _expRot = null; /* export 회전: { deg, cx, cy } 또는 null */
@@ -1344,7 +1347,10 @@
         }
       }
       if (leftTurns.length > 0) {
-        leftTurns.sort(function(a, b) { return a.cross - b.cross || a.distSq - b.distSq; });
+        /* 핀치 꼭짓점(두 영역이 점 하나만 공유): 가장 날카로운 왼쪽 턴을 선택해
+           각 덩어리 외곽을 독립적으로 감싸도록 한다. 가장 완만한 턴을 고르면
+           경계가 대각선으로 가로질러 삼각형/대각선 잘림이 생긴다. */
+        leftTurns.sort(function(a, b) { return b.cross - a.cross || b.distSq - a.distSq; });
         best = leftTurns[0].key;
       }
       return best;
@@ -1470,7 +1476,10 @@
         }
       }
       if (leftTurns.length > 0) {
-        leftTurns.sort(function(a, b) { return a.cross - b.cross || a.distSq - b.distSq; });
+        /* 핀치 꼭짓점(두 영역이 점 하나만 공유): 가장 날카로운 왼쪽 턴을 선택해
+           각 덩어리 외곽을 독립적으로 감싸도록 한다. 가장 완만한 턴을 고르면
+           경계가 대각선으로 가로질러 삼각형/대각선 잘림이 생긴다. */
+        leftTurns.sort(function(a, b) { return b.cross - a.cross || b.distSq - a.distSq; });
         best = leftTurns[0].key;
       }
       return best;
@@ -1876,6 +1885,18 @@
     var preview = floorLayer.querySelector('g[data-preview="floor"]');
     if (preview) preview.remove();
     if (!dragStart || !dragCurrent) return;
+    /* 지우개 모드: bounding-box 대신 현재 hover 셀 1칸만 하이라이트 */
+    if (eraserMode) {
+      if (dragSizeHintEl) { dragSizeHintEl.style.display = 'none'; }
+      var eg = document.createElementNS(SVG_NS, 'g');
+      eg.setAttribute('data-preview', 'floor');
+      var epoly = document.createElementNS(SVG_NS, 'polygon');
+      epoly.setAttribute('points', getDiamondPoints(dragCurrent.col, dragCurrent.row));
+      epoly.setAttribute('class', 'floor-tile preview eraser');
+      eg.appendChild(epoly);
+      floorLayer.appendChild(eg);
+      return;
+    }
     var c0 = Math.min(dragStart.col, dragCurrent.col);
     var c1 = Math.max(dragStart.col, dragCurrent.col);
     var r0 = Math.min(dragStart.row, dragCurrent.row);
@@ -3462,6 +3483,18 @@
       if (cell !== null) {
         dragStart = { col: cell.col, row: cell.row };
         dragCurrent = { col: cell.col, row: cell.row };
+        eraserDragActive = true;
+        eraserHistoryPushed = false;
+        eraserChanged = false;
+        /* 브러시 방식: 클릭한 셀 즉시 지우기 */
+        if (isCellFloor(cell.col, cell.row) && !isCellInAnyRoom(cell.col, cell.row)) {
+          if (!eraserHistoryPushed) { pushHistory(); eraserHistoryPushed = true; }
+          if (removeFloorCell(cell.col, cell.row, true)) {
+            eraserChanged = true;
+            renderFloors();
+            buildGrid();
+          }
+        }
         renderFloorPreview();
       }
       return;
@@ -3727,6 +3760,17 @@
     }
     if (dragStart && cell !== null) {
       dragCurrent = { col: cell.col, row: cell.row };
+      /* 지우개 드래그: 브러시 방식으로 현재 셀만 지움 (bounding-box X) */
+      if (eraserMode && eraserDragActive) {
+        if (isCellFloor(cell.col, cell.row) && !isCellInAnyRoom(cell.col, cell.row)) {
+          if (!eraserHistoryPushed) { pushHistory(); eraserHistoryPushed = true; }
+          if (removeFloorCell(cell.col, cell.row, true)) {
+            eraserChanged = true;
+            renderFloors();
+            buildGrid();
+          }
+        }
+      }
       renderFloorPreview();
       // 드래그 중 사이즈 힌트 위치를 마우스 근처로 이동
       if (dragSizeHintEl) {
@@ -3873,21 +3917,13 @@
     var sameCell = (c0 === c1 && r0 === r1);
 
     if (eraserMode) {
-      pushHistory();
-      var changed = false;
-      for (var rr = r0; rr <= r1; rr++) {
-        for (var cc = c0; cc <= c1; cc++) {
-          if (isCellFloor(cc, rr) && !isCellInAnyRoom(cc, rr)) {
-            if (removeFloorCell(cc, rr, true)) changed = true;
-          }
-        }
-      }
-      if (changed) {
-        renderFloors();
-        buildGrid();
-      } else {
+      /* 브러시 방식: mousedown/move에서 이미 지움. 히스토리 롤백만 처리 */
+      if (eraserHistoryPushed && !eraserChanged) {
         historyStack.pop();
       }
+      eraserDragActive = false;
+      eraserHistoryPushed = false;
+      eraserChanged = false;
       dragStart = null;
       dragCurrent = null;
       renderFloorPreview();
